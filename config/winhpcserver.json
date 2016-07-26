@@ -4,11 +4,10 @@
         "scp_exec"              : "C:\\Program Files (x86)\\PuTTY\\pscp.exe",
         "username"              : "user",
         "uid"                   : "10000",
-        "gid"                   : "10000"
+        "gid"                   : "10000",
         "serverName"            : "winserver",
         "secretAccessKey"       : "C:\\Users\\User\\.ssh\\id_rsa",
-        "local_shell"           : "C:\\Windows\\System32\\cmd.exe",
-        "local_copy"            : "/c COPY",
+        "local_copy"            : "COPY",
         "binaries_dir"          : "C:\\Program Files\\Microsoft HPC Pack 2008 R2\\Bin",
         "useSharedDir"          : false,
         "working_dir"           : "C:\\tmp"
