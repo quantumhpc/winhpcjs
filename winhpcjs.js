@@ -19,7 +19,7 @@ var spawn = cproc.spawnSync;
 var fs = require("fs");
 var path = require("path");
 var win_shell = process.env.comspec;
-var line_separator = "\r\n"
+var line_separator = "\r\n";
 
 // General command dictionnary keeping track of implemented features
 var cmdDict = {
@@ -105,7 +105,7 @@ function spawnProcess(spawnCmd, spawnType, spawnDirection, win_config){
     return spawn(spawnExec, spawnCmd, spawnOpts);
 }
 
-// Treat Windows HPC list parameters containing ':'
+// Treat Windows HPC parameter list containing ':'
 function jsonifyParam(output){
     //Separate each line
     output = output.split(line_separator);
@@ -283,7 +283,7 @@ function winjobs_js(win_config, jobId, callback){
         return callback(null, jobs);
     }else{
         // Not yet supported
-        return callback(null,null)
+        return callback(null,null);
     }
 }
 
