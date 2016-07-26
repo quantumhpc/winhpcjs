@@ -23,10 +23,10 @@ var line_separator = "\r\n";
 
 // General command dictionnary keeping track of implemented features
 var cmdDict = {
-    "job"      :   ["job", "list"],
+    "job"      :   ["job", "view", "/detailed:true"],
     "jobs"     :   ["job", "list", "/all", "/format:list"],
-    "node"     :   ["nodehpc"],
-    "nodes"    :   ["nodehpc", "list", "/format:list"],
+    "node"     :   ["node"],
+    "nodes"    :   ["node", "list", "/format:list"],
     "submit"   :   ["job", "submit"],
     "delete"   :   ["job", "cancel"],
     };
@@ -282,8 +282,8 @@ function winjobs_js(win_config, jobId, callback){
         }
         return callback(null, jobs);
     }else{
-        // Not yet supported
-        return callback(null,null);
+        // Return detailed info on a job
+        return callback(null,jsonifyParam(output.stdout));
     }
 }
 
