@@ -129,15 +129,19 @@ function createUID()
     });
 }
 
-function createJobWorkDir(win_config){
+function createJobWorkDir(win_config, callback){
     // Get configuration working directory and Generate a UID for the working dir
     var jobWorkingDir = path.join(win_config.working_dir,createUID());
     
     //Create workdir with 700 permissions
-    spawnProcess([win_shell, '/c', 'IF NOT EXIST ' + jobWorkingDir + ' ' + win_shell + ' /c mkdir ' +jobWorkingDir] ,"shell", null, win_config);
+    var process = spawnProcess([win_shell, '/c', 'IF NOT EXIST ' + jobWorkingDir + ' ' + win_shell + ' /c mkdir ' +jobWorkingDir] ,"shell", null, win_config);
     
+    // Transmit the error if any
+    if (process.stderr){
+        return callback(new Error(process.stderr));
+    }
     //TODO:handles error
-    return jobWorkingDir;
+    return callback(null, jobWorkingDir);
 }
 
 
