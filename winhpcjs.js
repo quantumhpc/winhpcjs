@@ -187,7 +187,7 @@ function winnodes_js(win_config, controlCmd, nodeName, callback){
                 // Node specific info
                 nodeName = args.pop();
                 remote_cmd = cmdBuilder(win_config.binaries_dir, cmdDict.node);
-                remote_cmd = remote_cmd.concat(nodeControlCmd['view']);
+                remote_cmd = remote_cmd.concat(nodeControlCmd.view);
                 remote_cmd.push(nodeName);
                 detailedInfo = true;
                 break;
@@ -293,8 +293,103 @@ function wincancel_js(win_config,jobId,callback){
     return callback(null, {"message" : 'Job ' + jobId + ' successfully deleted'});
 }
 
+// Generate the script to run the job and write it to the specified path
+// Workdir has to be specified, WinHPC does not allow jobfile and workdir
+// Job Arguments taken in input : TO COMPLETE
+// Return the full path of the SCRIPT
+/* jobArgs = {
+    jobName         :   String      //  'Name="My Task"'
+    ressources      :   String      //  'UnitType="Core" MinCores="1" MaxCores="1"'
+    walltime        :   String      //  'RuntimeSeconds="10860"'
+    queue           :   String      //  'NodeGroups="AzureNodes,ComputeNode"'
+    workdir         :   String      //  'WorkDirectory="workDirPath"'
+    stdout          :   String      //  'StdOutFilePath="outFile"'
+    stderr          :   String      //  'StdErrFilePath="errFile"'
+    exclusive       :   Boolean     //  'IsExclusive="false"'
+    mail            :   String      //  'EmailAddress="test@Test.com"'
+    mailBegins      :   Boolean     //  'NotifyOnStart="true"'
+    mailTerminates  :   Boolean     //  'NotifyOnCompletion="true"'
+    commands        :   Array       //  'main commands to run'
+    },
+    localPath   :   'path/to/save/script'
+    callback    :   callback(err,scriptFullPath)
+}*/
+/* Not implemented:
+RunUntilCanceled="false"
+JobType="Batch"
+JobTemplate="Default"
+*/
 function winscript_js(jobArgs, localPath, callback){
-   
+    var toWrite = '<?xml version="1.0" encoding="utf-8"?>';
+    toWrite += line_separator + '<Job';
+    
+    var jobName = jobArgs.jobName;
+    
+    // The name has to be bash compatible: TODO expand to throw other erros
+    if (jobName.search(/[^a-zA-Z0-9]/g) !== -1){
+        return callback(new Error('Name cannot contain special characters'));
+    }
+
+    // Generate the script path
+    var scriptFullPath = path.join(localPath,jobName + '.xml');
+    
+    // Job Name
+    toWrite += ' Name="' + jobName + '"';
+    
+    // Ressources
+    toWrite += ' UnitType="Core" MinCores="' + jobArgs.ressources + '" MaxCores="' + jobArgs.ressources + '"';
+    
+    // Walltime: optional
+    if (jobArgs.walltime !== undefined && jobArgs.walltime !== ''){
+        toWrite += ' RuntimeSeconds="' + jobArgs.walltime + '"';
+    }
+    
+    // Node groups optional
+    if (jobArgs.queue !== undefined && jobArgs.queue !== ''){
+        toWrite += ' NodeGroups="' + jobArgs.queue + '"';
+    }
+    
+    // Job exclusive
+    if (jobArgs.exclusive){
+        toWrite += ' IsExclusive="false"';
+    }
+    
+    // Send mail
+    if (jobArgs.mail){
+    toWrite += ' EmailAddress="' + jobArgs.mail + '"';
+    
+        if(jobArgs.mailBegins){     
+          toWrite += ' NotifyOnStart="true"';
+        }
+        if(jobArgs.mailTerminates){     
+          toWrite += ' NotifyOnCompletion="true"';
+        }
+    }
+    
+    // Tasks
+    toWrite += '>' + line_separator + '<Tasks>';
+    
+    // Loop on tasks
+    //TODO: allow multiple tasks
+        toWrite += line_separator + '<Task';
+        // Ressources
+        toWrite += ' UnitType="Core" MinCores="' + jobArgs.ressources + '" MaxCores="' + jobArgs.ressources + '"';
+        toWrite += ' Name="' + jobName + '"';
+        // Workdir
+        toWrite += ' WorkDirectory="' + jobArgs.workdir + '"';
+        //Stdout and err
+        toWrite += ' StdOutFilePath="' + jobArgs.stdout + '" StdErrFilePath="' + jobArgs.stderr + '"';
+        //Command
+        toWrite += ' CommandLine="' + jobArgs.commands + '"';
+        //End
+        toWrite += ' />';
+    
+    // End tasks
+    toWrite += line_separator + '</Tasks>' + line_separator + '</Job>';
+    
+    // Write to script
+    fs.writeFileSync(scriptFullPath,toWrite);
+    
     return callback(null, {
         "message"   :   'Script for job ' + jobName + ' successfully created',
         "path"      :   scriptFullPath
@@ -338,5 +433,7 @@ function retrieve_js(win_config, jobId, fileList, localDir, callback){
 
 module.exports = {
     winnodes_js           : winnodes_js,
-    winjobs_js            : winjobs_js
+    winjobs_js            : winjobs_js,
+    winscript_js          : winscript_js,
+    createJobWorkDir      : createJobWorkDir
 };
