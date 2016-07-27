@@ -52,10 +52,6 @@ function cmdBuilder(binPath, cmdDictElement){
 // TODO: treat errors
 function spawnProcess(spawnCmd, spawnType, spawnDirection, win_config){
     var spawnExec;
-    // UID and GID throw a core dump if not correct numbers
-    if ( Number.isNaN(win_config.uid) || Number.isNaN(win_config.gid) ) {
-        return {stderr : "Please specify valid uid/gid"};
-    }  
     var spawnOpts = { encoding : 'utf8'};
     switch (spawnType){
         case "shell":
@@ -400,7 +396,42 @@ function winscript_js(jobArgs, localPath, callback){
         });
 }
 
-function winsubmit_js(win_config, subArgs, callback){
+// Interface for job submit
+// Submit a script by its absolute path
+// winsub_js(
+/*    
+        win_config      :   config,
+        jobArgs         :   array of required files to send to the server with the script in 0,
+        jobWorkingDir   :   working directory,
+        callack(message, jobId, jobWorkingDir)
+}
+*/
+function winsub_js(win_config, jobArgs, jobWorkingDir, callback){
+    var remote_cmd = cmdBuilder(win_config.binaries_dir, cmdDict.submit);
+    
+    if(jobArgs.length < 1) {
+        return callback(new Error('Please submit the script to run'));  
+    }
+    
+    // Send files by the copy command defined
+    for (var i = 0; i < jobArgs.length; i++){
+        var copyCmd = spawnProcess([jobArgs[i],jobWorkingDir],"copy","send",win_config);
+        if (copyCmd.stderr){
+            return callback(new Error(copyCmd.stderr));
+        }
+    }
+    // Add script: first element of qsubArgs
+    var scriptName = path.basename(jobArgs[0]);
+    remote_cmd.push("/jobfile:" + path.join(jobWorkingDir,scriptName));
+    
+    // Submit
+    var output = spawnProcess(remote_cmd,"shell",null,win_config);
+    // Transmit the error if any
+    if (output.stderr){
+        return callback(new Error(output.stderr));
+    }
+    // Catch job Id
+    var jobId = output.stdout.match(/.+?\:\s*([0-9]+)/)[1];
     
     return callback(null, { 
             "message"   : 'Job ' + jobId + ' submitted',
@@ -439,5 +470,6 @@ module.exports = {
     winnodes_js           : winnodes_js,
     winjobs_js            : winjobs_js,
     winscript_js          : winscript_js,
+    winsub_js             : winsub_js,
     createJobWorkDir      : createJobWorkDir
 };
