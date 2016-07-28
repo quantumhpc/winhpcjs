@@ -125,6 +125,7 @@ function createUID()
     });
 }
 
+// Create a unique working directory in the global working directory from the config
 function createJobWorkDir(win_config, callback){
     // Get configuration working directory and Generate a UID for the working dir
     var jobWorkingDir = path.join(win_config.working_dir,createUID());
@@ -272,7 +273,6 @@ function winjobs_js(win_config, jobId, callback){
     
     // Job info or list
     if (jobList){
-        // output = output.stdout.split(new RegExp(line_separator + '{2,}','g'));
         output = output.stdout.split(line_separator + line_separator);
         // Parse jobs
         var jobs = [];
