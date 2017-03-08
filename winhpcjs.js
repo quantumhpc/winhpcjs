@@ -98,7 +98,14 @@ function spawnProcess(spawnCmd, spawnType, spawnDirection, win_config){
             }
             break;
     }
-    return spawn(spawnExec, spawnCmd, spawnOpts);
+    var spawnReturn = spawn(spawnExec, spawnCmd, spawnOpts);
+    // console.log(spawnReturn)
+    // Restart on first connect
+    if(spawnReturn.stderr.indexOf("Warning: Permanently added") > -1){
+        return spawn(spawnExec, spawnCmd, spawnOpts);
+    }else{
+        return spawnReturn;
+    }
 }
 
 // Treat Windows HPC parameter list containing ':'
@@ -256,7 +263,8 @@ function winjobs_js(win_config, jobId, callback){
     var remote_cmd;
     
     // Info on a specific job
-    if (args.length == 1){
+    //TODO: implement 'job view' on all jobs
+    if (args.length == 1 && jobId !== 'all'){
         jobId = args.pop();
         remote_cmd = cmdBuilder(win_config.binaries_dir, cmdDict.job);
         remote_cmd.push(jobId);
@@ -441,7 +449,53 @@ function winsub_js(win_config, jobArgs, jobWorkingDir, callback){
 }
 
 function winqueues_js(win_config, queueName, callback){
+    // JobId is optionnal so we test on the number of args
+    var args = [];
+    for (var i = 0; i < arguments.length; i++) {
+        args.push(arguments[i]);
+    }
     
+    // first argument is the config file
+    win_config = args.shift();
+
+    // last argument is the callback function
+    callback = args.pop();
+    
+    var remote_cmd;
+    
+    // Info on a specific job
+    // if (args.length == 1){
+    //     queueName = args.pop();
+    //     remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.queue);
+    //     remote_cmd.push(queueName);
+    // }else{
+    //     remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.queues);
+    // }
+    
+    // var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
+
+    // // Transmit the error if any
+    // if (output.stderr){
+    //     return callback(new Error(output.stderr));
+    // }
+    // var queues = { name: 'exec_queue',
+    //     maxJobs: '0',
+    //     totalJobs: '0',
+    //     enabled: true,
+    //     started: true,
+    //     queued: '0',
+    //     running: '0',
+    //     held: '0',
+    //     waiting: '0',
+    //     moving: '0',
+    //     exiting: '0',
+    //     type: 'Execution',
+    //     completed: undefined };
+    var queues = [{ name: 'ComputeNodes',
+        maxJobs: '0',
+        queued: '0',
+        running: '0'
+    }];
     return callback(null, queues);
     
 }
@@ -470,6 +524,7 @@ module.exports = {
     winnodes_js           : winnodes_js,
     winjobs_js            : winjobs_js,
     winscript_js          : winscript_js,
+    winqueues_js          : winqueues_js,
     winsub_js             : winsub_js,
     createJobWorkDir      : createJobWorkDir
 };
