@@ -57,7 +57,7 @@ function spawnProcess(spawnCmd, spawnType, spawnDirection, win_config){
         case "shell":
             switch (win_config.method){
                 case "ssh":
-                    spawnExec = win_config.ssh_exec;
+                    spawnExec = win_config.sshExec;
                     spawnCmd = [win_config.username + "@" + win_config.serverName,"-o","StrictHostKeyChecking=no","-i",win_config.secretAccessKey].concat(spawnCmd);
                     break;
                 case "local":
@@ -69,13 +69,13 @@ function spawnProcess(spawnCmd, spawnType, spawnDirection, win_config){
         case "copy":
             // Special case if we can use a shared file system
             if (win_config.useSharedDir){
-                spawnExec = win_config.local_copy;
+                spawnExec = win_config.localCopy;
                 spawnOpts.shell = true;
             }else{
                 switch (win_config.method){
                     // Build the scp command
                     case "ssh":
-                        spawnExec = win_config.scp_exec;
+                        spawnExec = win_config.scpExec;
                         var file;
                         var destDir;
                         switch (spawnDirection){
@@ -91,7 +91,7 @@ function spawnProcess(spawnCmd, spawnType, spawnDirection, win_config){
                         spawnCmd = ["-o","StrictHostKeyChecking=no","-i",win_config.secretAccessKey,file,destDir];
                         break;
                     case "local":
-                        spawnExec = win_config.local_copy;
+                        spawnExec = win_config.localCopy;
                         spawnOpts.shell = true;
                         break;
                 }
@@ -99,7 +99,6 @@ function spawnProcess(spawnCmd, spawnType, spawnDirection, win_config){
             break;
     }
     var spawnReturn = spawn(spawnExec, spawnCmd, spawnOpts);
-    // console.log(spawnReturn)
     // Restart on first connect
     if(spawnReturn.stderr.indexOf("Warning: Permanently added") > -1){
         return spawn(spawnExec, spawnCmd, spawnOpts);
@@ -135,7 +134,7 @@ function createUID()
 // Create a unique working directory in the global working directory from the config
 function createJobWorkDir(win_config, callback){
     // Get configuration working directory and Generate a UID for the working dir
-    var jobWorkingDir = path.join(win_config.working_dir,createUID());
+    var jobWorkingDir = path.join(win_config.workingDir,createUID());
     
     //Create workdir with 700 permissions
     var process = spawnProcess([win_shell, '/c', 'IF NOT EXIST ' + jobWorkingDir + ' ' + win_shell + ' /c mkdir ' +jobWorkingDir] ,"shell", null, win_config);
@@ -186,7 +185,7 @@ function winnodes_js(win_config, controlCmd, nodeName, callback){
                 // Node control
                 nodeName = args.pop();
                 controlCmd = args.pop();
-                remote_cmd = cmdBuilder(win_config.binaries_dir, cmdDict.node);
+                remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.node);
                 remote_cmd = remote_cmd.concat(nodeControlCmd[controlCmd]);
                 remote_cmd.push(nodeName);
                 parseOutput = false;
@@ -194,14 +193,14 @@ function winnodes_js(win_config, controlCmd, nodeName, callback){
             case 1:
                 // Node specific info
                 nodeName = args.pop();
-                remote_cmd = cmdBuilder(win_config.binaries_dir, cmdDict.node);
+                remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.node);
                 remote_cmd = remote_cmd.concat(nodeControlCmd.view);
                 remote_cmd.push(nodeName);
                 detailedInfo = true;
                 break;
             default:
                 // Default
-                remote_cmd = cmdBuilder(win_config.binaries_dir, cmdDict.nodes);
+                remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.nodes);
         }
         
         var output = spawnProcess(remote_cmd,"shell",null,win_config);
@@ -266,11 +265,11 @@ function winjobs_js(win_config, jobId, callback){
     //TODO: implement 'job view' on all jobs
     if (args.length == 1 && jobId !== 'all'){
         jobId = args.pop();
-        remote_cmd = cmdBuilder(win_config.binaries_dir, cmdDict.job);
+        remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.job);
         remote_cmd.push(jobId);
         jobList = false;
     }else{
-        remote_cmd = cmdBuilder(win_config.binaries_dir, cmdDict.jobs);
+        remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.jobs);
     }
     var output = spawnProcess(remote_cmd,"shell",null,win_config);
     
@@ -307,7 +306,7 @@ function wincancel_js(win_config,jobId,callback){
 // Return the full path of the SCRIPT
 /* jobArgs = {
     jobName         :   String      //  'Name="My Task"'
-    ressources      :   String      //  'UnitType="Core" MinCores="1" MaxCores="1"'
+    resources      :   String      //  'UnitType="Core" MinCores="1" MaxCores="1"'
     walltime        :   String      //  'RuntimeSeconds="10860"'
     queue           :   String      //  'NodeGroups="AzureNodes,ComputeNode"'
     workdir         :   String      //  'WorkDirectory="workDirPath"'
@@ -344,8 +343,9 @@ function winscript_js(jobArgs, localPath, callback){
     // Job Name
     toWrite += ' Name="' + jobName + '"';
     
-    // Ressources
-    toWrite += ' UnitType="Core" MinCores="' + jobArgs.ressources + '" MaxCores="' + jobArgs.ressources + '"';
+    // Resources
+    jobArgs.resources = parseResources(jobArgs.resources);
+    toWrite += jobArgs.resources;
     
     // Walltime: optional
     if (jobArgs.walltime !== undefined && jobArgs.walltime !== ''){
@@ -380,8 +380,8 @@ function winscript_js(jobArgs, localPath, callback){
     // Loop on tasks
     //TODO: allow multiple tasks
         toWrite += line_separator + '<Task';
-        // Ressources
-        toWrite += ' UnitType="Core" MinCores="' + jobArgs.ressources + '" MaxCores="' + jobArgs.ressources + '"';
+        // Resources
+        toWrite += jobArgs.resources;
         toWrite += ' Name="' + jobName + '"';
         // Workdir
         toWrite += ' WorkDirectory="' + jobArgs.workdir + '"';
@@ -415,7 +415,7 @@ function winscript_js(jobArgs, localPath, callback){
 }
 */
 function winsub_js(win_config, jobArgs, jobWorkingDir, callback){
-    var remote_cmd = cmdBuilder(win_config.binaries_dir, cmdDict.submit);
+    var remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.submit);
     
     if(jobArgs.length < 1) {
         return callback(new Error('Please submit the script to run'));  
@@ -500,6 +500,44 @@ function winqueues_js(win_config, queueName, callback){
     
 }
 
+// Interface for Job delete
+// Delete the specified job Id and return the message and the status code
+function windel_js(win_config,jobId,callback){
+    console.log(arguments)
+    // JobId is optionnal so we test on the number of args
+    var args = [];
+    for (var i = 0; i < arguments.length; i++) {
+        args.push(arguments[i]);
+    }
+
+    // first argument is the config file
+    win_config = args.shift();
+    console.log(win_config)
+
+    // last argument is the callback function
+    callback = args.pop();
+    console.log(win_config.binariesDir)
+    console.log(cmdDict.delete)
+    var remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.delete);
+    
+    if (args.length !== 1){
+        // Return an error
+        return callback(new Error('Please specify the jobId'));
+    }else{
+        jobId = args.pop();
+        remote_cmd.push(jobId);
+    }
+    
+    var output = spawnProcess(remote_cmd,"shell",null,win_config);
+    
+    // Transmit the error if any
+    if (output.stderr){
+        return callback(new Error(output.stderr));
+    }
+    // Job deleted returns
+    return callback(null, {"message" : 'Job ' + jobId + ' successfully deleted'});
+}
+
 // Display server info
 function mgr_js(win_config, mgrCmd, callback){
     
@@ -519,11 +557,39 @@ function retrieve_js(win_config, jobId, fileList, localDir, callback){
         });
 
 }
+// Parse resources and return the UnitType="Core||Socket||Nodes"  statement
+//TODO: check against resources_available
+/**
+ * {
+     cores          :   [Int],
+     nodes          :   [Int],
+     sockets        :   [Int]
+   }
+**/
+function parseResources(resources){
+    
+    // Inject UnitType Core||Node||Socket
+    var unitType;
+    var unitValue;
+    if(resources.cores){
+        unitType = "Core";
+        unitValue = resources.cores;
+    }else if(resources.nodes){
+        unitType = "Node";
+        unitValue = resources.nodes;
+    }else if(resources.sockets){
+        unitType = "Socket";
+        unitValue = resources.sockets;
+    }
+    return ' UnitType="' + unitType + '" Min' + unitType + 's="' + unitValue + '" Max' + unitType + 's="' + unitValue + '"';
+}
+
 
 module.exports = {
     winnodes_js           : winnodes_js,
     winjobs_js            : winjobs_js,
     winscript_js          : winscript_js,
+    windel_js             : windel_js,
     winqueues_js          : winqueues_js,
     winsub_js             : winsub_js,
     createJobWorkDir      : createJobWorkDir
