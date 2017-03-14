@@ -52,10 +52,12 @@ function cmdBuilder(binPath, cmdDictElement){
     pbs_config
 */
 // TODO: treat errors
-function spawnProcess(spawnCmd, spawnType, spawnDirection, win_config){
+function spawnProcess(spawnCmd, spawnType, spawnDirection, win_config, opts){
     var spawnExec;
-    // Timeout command if the credentials are not set
-    var spawnOpts = { encoding : 'utf8', timeout: 10000};
+    var spawnOpts = opts || {};
+    spawnOpts.encoding = 'utf8';
+	// Timeout command if the credentials are not set
+    spawnOpts.timeout = 10000;
     switch (spawnType){
         case "shell":
             switch (win_config.method){
@@ -102,8 +104,9 @@ function spawnProcess(spawnCmd, spawnType, spawnDirection, win_config){
             break;
     }
     var spawnReturn = spawn(spawnExec, spawnCmd, spawnOpts);
+
     // Restart on first connect
-    if(spawnReturn.stderr.indexOf("Warning: Permanently added") > -1){
+    if(spawnReturn.stderr && spawnReturn.stderr.indexOf("Warning: Permanently added") > -1){
         return spawn(spawnExec, spawnCmd, spawnOpts);
     }else{
         return spawnReturn;
@@ -120,6 +123,7 @@ function jsonifyParam(output){
         if (output[i].indexOf(':')!== -1){
             // Split key and value to 0 and 1
             var data = output[i].split(':');
+
             var label = data[0].trim();
             var value = data[1].trim();
             // Convert JobId to number for better sorting
