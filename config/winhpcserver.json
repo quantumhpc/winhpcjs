@@ -1,14 +1,14 @@
 {
         "method"                : "local",
-        "sshExec"              : "C:\\Program Files (x86)\\PuTTY\\plink.exe",
-        "scpExec"              : "C:\\Program Files (x86)\\PuTTY\\pscp.exe",
+        "sshExec"               : "C:\\Program Files (x86)\\PuTTY\\plink.exe",
+        "scpExec"               : "C:\\Program Files (x86)\\PuTTY\\pscp.exe",
         "username"              : "user",
         "domain"                : "DOMAIN",
         "serverName"            : "winserver",
         "secretAccessKey"       : "C:\\Users\\User\\.ssh\\id_rsa",
-        "localCopy"            : "COPY",
-        "binariesDir"          : "C:\\Program Files\\Microsoft HPC Pack 2008 R2\\Bin",
+        "localCopy"             : "COPY",
+        "binariesDir"           : "C:\\Program Files\\Microsoft HPC Pack 2008 R2\\Bin",
         "useSharedDir"          : false,
-        "workingDir"           : "C:\\tmp",
-        "sharedDir"           : "C:\\tmp"
+        "workingDir"            : "C:\\tmp",
+        "sharedDir"             : "C:\\tmp"
 }

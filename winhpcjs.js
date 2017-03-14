@@ -23,6 +23,8 @@ var line_separator = "\r\n";
 
 // General command dictionnary keeping track of implemented features
 var cmdDict = {
+    "setcreds" :   ["hpccred ", "setcreds"],
+    "delcreds" :   ["hpccred ", "delcreds"],
     "job"      :   ["job", "view", "/detailed:true"],
     "jobs"     :   ["job", "list", "/all", "/format:list"],
     "node"     :   ["node"],
@@ -52,7 +54,8 @@ function cmdBuilder(binPath, cmdDictElement){
 // TODO: treat errors
 function spawnProcess(spawnCmd, spawnType, spawnDirection, win_config){
     var spawnExec;
-    var spawnOpts = { encoding : 'utf8'};
+    // Timeout command if the credentials are not set
+    var spawnOpts = { encoding : 'utf8', timeout: 10000};
     switch (spawnType){
         case "shell":
             switch (win_config.method){
@@ -137,6 +140,11 @@ function createUID()
     });
 }
 
+
+// Windows does not support UID/GID, so we insert /user: on each command
+function insertUsername(win_config){
+    return win_config.domain + "\\" + win_config.username;
+}
 // Create a unique working directory in the global working directory from the config
 function createJobWorkDir(win_config, callback){
     // Get configuration working directory and Generate a UID for the working dir
@@ -153,7 +161,24 @@ function createJobWorkDir(win_config, callback){
     return callback(null, jobWorkingDir);
 }
 
+// Set credentials with plain-text password on command line
+function winCreds(win_config, password, callback){
+    
+    var remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.setcreds);
+    // User
+    remote_cmd += " /user:" + insertUsername(win_config);
+    
+    // Password
+    remote_cmd += " /password:" + password;
+    
+    var output = spawnProcess(remote_cmd,"shell",null,win_config);
+    // Transmit the error if any
+    if (output.stderr){
+        return callback(new Error(output.stderr));
+    }
 
+    return callback(null, true);
+}
 
 // Interface for Win HPC NODE
 /** winnodes_js(
@@ -592,6 +617,7 @@ function parseResources(resources){
 
 
 module.exports = {
+    winCreds              : winCreds,
     winnodes_js           : winnodes_js,
     winjobs_js            : winjobs_js,
     winscript_js          : winscript_js,
