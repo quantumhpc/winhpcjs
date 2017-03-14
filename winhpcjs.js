@@ -104,7 +104,7 @@ function spawnProcess(spawnCmd, spawnType, spawnDirection, win_config, opts){
             break;
     }
     var spawnReturn = spawn(spawnExec, spawnCmd, spawnOpts);
-
+    
     // Restart on first connect
     if(spawnReturn.stderr && spawnReturn.stderr.indexOf("Warning: Permanently added") > -1){
         return spawn(spawnExec, spawnCmd, spawnOpts);
@@ -147,8 +147,9 @@ function createUID()
 
 // Windows does not support UID/GID, so we insert /user: on each command
 function insertUsername(win_config){
-    return win_config.domain + "\\" + win_config.username;
+    return " /user:" + win_config.domain + "\\" + win_config.username;
 }
+
 // Create a unique working directory in the global working directory from the config
 function createJobWorkDir(win_config, callback){
     // Get configuration working directory and Generate a UID for the working dir
@@ -170,7 +171,7 @@ function winCreds(win_config, password, callback){
     
     var remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.setcreds);
     // User
-    remote_cmd += " /user:" + insertUsername(win_config);
+    remote_cmd += insertUsername(win_config);
     
     // Password
     remote_cmd += " /password:" + password;
@@ -178,7 +179,7 @@ function winCreds(win_config, password, callback){
     var output = spawnProcess(remote_cmd,"shell",null,win_config);
     // Transmit the error if any
     if (output.stderr){
-        return callback(new Error(output.stderr));
+        return callback(new Error(output.stderr.split(/\r\n/g)[0]));
     }
 
     return callback(null, true);
@@ -241,7 +242,7 @@ function winnodes_js(win_config, controlCmd, nodeName, callback){
         var output = spawnProcess(remote_cmd,"shell",null,win_config);
         // Transmit the error if any
         if (output.stderr){
-            return callback(new Error(output.stderr));
+            return callback(new Error(output.stderr.split(/\r\n/g)[0]));
         }
         
         if (parseOutput){
@@ -310,7 +311,7 @@ function winjobs_js(win_config, jobId, callback){
     
     // Transmit the error if any
     if (output.stderr){
-        return callback(new Error(output.stderr));
+        return callback(new Error(output.stderr.split(/\r\n/g)[0]));
     }
     
     // Job info or list
@@ -465,13 +466,15 @@ function winsub_js(win_config, jobArgs, jobWorkingDir, callback){
     }
     // Add script: first element of qsubArgs
     var scriptName = path.basename(jobArgs[0]);
-    remote_cmd.push("/jobfile:" + path.join(jobWorkingDir,scriptName));
+    remote_cmd.push("/jobfile:" + scriptName);
+    // Username
+    remote_cmd.push(insertUsername(win_config));
     
     // Submit
-    var output = spawnProcess(remote_cmd,"shell",null,win_config);
+    var output = spawnProcess(remote_cmd,"shell",null,win_config, { cwd : jobWorkingDir});
     // Transmit the error if any
     if (output.stderr){
-        return callback(new Error(output.stderr));
+        return callback(new Error(output.stderr.split(/\r\n/g)[0]));
     }
     // Catch job Id
     var jobId = output.stdout.match(/.+?\:\s*([0-9]+)/)[1];
@@ -511,7 +514,7 @@ function winqueues_js(win_config, queueName, callback){
 
     // // Transmit the error if any
     // if (output.stderr){
-    //     return callback(new Error(output.stderr));
+    //     return callback(new Error(output.stderr.split(/\r\n/g)[0]));
     // }
     // var queues = { name: 'exec_queue',
     //     maxJobs: '0',
@@ -567,7 +570,7 @@ function windel_js(win_config,jobId,callback){
     
     // Transmit the error if any
     if (output.stderr){
-        return callback(new Error(output.stderr));
+        return callback(new Error(output.stderr.split(/\r\n/g)[0]));
     }
     // Job deleted returns
     return callback(null, {"message" : 'Job ' + jobId + ' successfully deleted'});
