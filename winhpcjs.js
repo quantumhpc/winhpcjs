@@ -559,7 +559,6 @@ function winqueues_js(win_config, queueName, callback){
 // Interface for Job delete
 // Delete the specified job Id and return the message and the status code
 function windel_js(win_config,jobId,callback){
-    console.log(arguments)
     // JobId is optionnal so we test on the number of args
     var args = [];
     for (var i = 0; i < arguments.length; i++) {
@@ -568,12 +567,10 @@ function windel_js(win_config,jobId,callback){
 
     // first argument is the config file
     win_config = args.shift();
-    console.log(win_config)
 
     // last argument is the callback function
     callback = args.pop();
-    console.log(win_config.binariesDir)
-    console.log(cmdDict.delete)
+    
     var remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.delete);
     
     if (args.length !== 1){
