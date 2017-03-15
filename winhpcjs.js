@@ -150,6 +150,25 @@ function insertUsername(win_config){
     return " /user:" + win_config.domain + "\\" + win_config.username;
 }
 
+// Return the Working Directory
+function getJobWorkDir(win_config, jobId, callback){
+    
+    // Retrive Path
+    winjobs_js(win_config, jobId, function(err,data){
+        if(err){
+            return callback(err);
+        }
+        var jobWorkingDir;
+        try{
+            jobWorkingDir = path.resolve(data.WorkDirectory);
+        }catch(e){
+            return callback(new Error("Working directory not found"));
+        }
+        
+        return callback(null, jobWorkingDir);
+    });
+}
+
 // Create a unique working directory in the global working directory from the config
 function createJobWorkDir(win_config, callback){
     // Get configuration working directory and Generate a UID for the working dir
@@ -630,5 +649,6 @@ module.exports = {
     windel_js             : windel_js,
     winqueues_js          : winqueues_js,
     winsub_js             : winsub_js,
+    getJobWorkDir         : getJobWorkDir,
     createJobWorkDir      : createJobWorkDir
 };
