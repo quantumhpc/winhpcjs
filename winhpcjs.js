@@ -313,7 +313,6 @@ function winjobs_js(win_config, jobId, callback){
     if (output.stderr){
         return callback(new Error(output.stderr.split(/\r\n/g)[0]));
     }
-    
     // Job info or list
     if (jobList){
         output = output.stdout.split(line_separator + line_separator);
