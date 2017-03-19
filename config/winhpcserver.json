@@ -10,5 +10,6 @@
         "binariesDir"           : "C:\\Program Files\\Microsoft HPC Pack 2008 R2\\Bin",
         "useSharedDir"          : false,
         "workingDir"            : "C:\\tmp",
-        "sharedDir"             : "C:\\tmp"
+        "sharedDir"             : "C:\\tmp",
+        "psExec"                : "C:\\Program Files\\PSTools\\psexe.exe"
 }

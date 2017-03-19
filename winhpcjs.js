@@ -459,6 +459,7 @@ function winscript_js(jobArgs, localPath, callback){
 }
 
 // Interface for job submit
+// Pass command to psexec to allow job owner to be the user
 // Submit a script by its absolute path
 // winsub_js(
 /*    
@@ -469,7 +470,18 @@ function winscript_js(jobArgs, localPath, callback){
 }
 */
 function winsub_js(win_config, jobArgs, jobWorkingDir, callback){
-    var remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.submit);
+    var remote_cmd = [win_config.psExec];
+    
+    // Username
+    remote_cmd.push('-u', win_config.domain + "\\" + win_config.username);
+    // Inline password with quotes
+    remote_cmd.push('-p', win_config.password);
+    // Working dir
+    remote_cmd.push('-w', jobWorkingDir);
+    
+    
+    // Add the Win HPC Command
+    remote_cmd = remote_cmd.concat(cmdBuilder(win_config.binariesDir,cmdDict.submit));
     
     if(jobArgs.length < 1) {
         return callback(new Error('Please submit the script to run'));  
@@ -485,17 +497,18 @@ function winsub_js(win_config, jobArgs, jobWorkingDir, callback){
     // Add script: first element of qsubArgs
     var scriptName = path.basename(jobArgs[0]);
     remote_cmd.push("/jobfile:" + scriptName);
-    // Username
-    remote_cmd.push(insertUsername(win_config));
     
     // Submit
-    var output = spawnProcess(remote_cmd,"shell",null,win_config, { cwd : jobWorkingDir});
+    var output = spawnProcess(remote_cmd,"shell",null,win_config);
+    
     // Transmit the error if any
-    if (output.stderr){
+    if (output.stderr && output.status > 0){
         return callback(new Error(output.stderr.split(/\r\n/g)[0]));
     }
     // Catch job Id
-    var jobId = output.stdout.match(/.+?\:\s*([0-9]+)/)[1];
+    // var jobId = output.stdout.match(/.+?\:\s*([0-9]+)/)[1];
+    // Temporary solution 
+    var jobId = 'successfully';
     
     return callback(null, { 
             "message"   : 'Job ' + jobId + ' submitted',
