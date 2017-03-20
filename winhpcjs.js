@@ -634,10 +634,11 @@ function windir_js(win_config, jobId, callback){
             
             // Loop on files
             var files = output.stdout[folder+1].split(line_separator);
-            for(var _f in files){
-                var fileName = files[_f].trim().split(/\s/g).pop();
-                if(fileName !== '.' && fileName !== '..'){
-                    fileList.files.push(path.resolve(folderPath, files[_f].trim().split(/\s/g).pop()));
+            for(var _f=0;_f<files.length-1;_f++){
+                var fileInfo = files[_f].trim().split(/\s/g);
+                // Save only files
+                if(fileInfo.indexOf('<DIR>') === -1){
+                    fileList.files.push(path.resolve(folderPath,fileInfo.pop()));
                 }
             }
         }
