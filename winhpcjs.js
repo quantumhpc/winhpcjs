@@ -20,13 +20,14 @@ var fs = require("fs");
 var path = require("path");
 var win_shell = process.env.comspec;
 var line_separator = "\r\n";
-
+var dirRegEx = /^\s*Directory of (.+)/;
 // General command dictionnary keeping track of implemented features
 var cmdDict = {
     "setcreds" :   ["hpccred ", "setcreds"],
     "delcreds" :   ["hpccred ", "delcreds"],
     "job"      :   ["job", "view", "/detailed:true"],
     "jobs"     :   ["job", "list", "/all", "/format:list"],
+    "task"      :  ["task", "view", "/detailed:true"],
     "node"     :   ["node"],
     "nodes"    :   ["node", "list", "/format:list"],
     "submit"   :   ["job", "submit"],
@@ -198,7 +199,7 @@ function winCreds(win_config, password, callback){
     var output = spawnProcess(remote_cmd,"shell",null,win_config);
     // Transmit the error if any
     if (output.stderr){
-        return callback(new Error(output.stderr.split(/\r\n/g)[0]));
+        return callback(new Error(output.stderr.split(line_separator)[0]));
     }
 
     return callback(null, true);
@@ -261,7 +262,7 @@ function winnodes_js(win_config, controlCmd, nodeName, callback){
         var output = spawnProcess(remote_cmd,"shell",null,win_config);
         // Transmit the error if any
         if (output.stderr){
-            return callback(new Error(output.stderr.split(/\r\n/g)[0]));
+            return callback(new Error(output.stderr.split(line_separator)[0]));
         }
         
         if (parseOutput){
@@ -330,7 +331,7 @@ function winjobs_js(win_config, jobId, callback){
     
     // Transmit the error if any
     if (output.stderr){
-        return callback(new Error(output.stderr.split(/\r\n/g)[0]));
+        return callback(new Error(output.stderr.split(line_separator)[0]));
     }
     // Job info or list
     if (jobList){
@@ -343,8 +344,16 @@ function winjobs_js(win_config, jobId, callback){
         }
         return callback(null, jobs);
     }else{
+        // Assuming a mono-task job, get further info with task view
+        remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.task);
+        remote_cmd.push(jobId + ".1");
+        var output2 = spawnProcess(remote_cmd,"shell",null,win_config);
+        // Transmit the error if any
+        if (output2.stderr){
+            return callback(new Error(output2.stderr.split(line_separator)[0]));
+        }
         // Return detailed info on a job
-        return callback(null,jsonifyParam(output.stdout));
+        return callback(null,jsonifyParam(output.stdout + output2.stdout));
     }
 }
 
@@ -485,14 +494,12 @@ function winsub_js(win_config, jobArgs, jobWorkingDir, callback){
     // Add script: first element of qsubArgs
     var scriptName = path.basename(jobArgs[0]);
     remote_cmd.push("/jobfile:" + scriptName);
-    // Username
-    remote_cmd.push(insertUsername(win_config));
     
     // Submit
     var output = spawnProcess(remote_cmd,"shell",null,win_config, { cwd : jobWorkingDir});
     // Transmit the error if any
     if (output.stderr){
-        return callback(new Error(output.stderr.split(/\r\n/g)[0]));
+        return callback(new Error(output.stderr.split(line_separator)[0]));
     }
     // Catch job Id
     var jobId = output.stdout.match(/.+?\:\s*([0-9]+)/)[1];
@@ -532,7 +539,7 @@ function winqueues_js(win_config, queueName, callback){
 
     // // Transmit the error if any
     // if (output.stderr){
-    //     return callback(new Error(output.stderr.split(/\r\n/g)[0]));
+    //     return callback(new Error(output.stderr.split(line_separator)[0]));
     // }
     // var queues = { name: 'exec_queue',
     //     maxJobs: '0',
@@ -585,7 +592,7 @@ function windel_js(win_config,jobId,callback){
     
     // Transmit the error if any
     if (output.stderr){
-        return callback(new Error(output.stderr.split(/\r\n/g)[0]));
+        return callback(new Error(output.stderr.split(line_separator)[0]));
     }
     // Job deleted returns
     return callback(null, {"message" : 'Job ' + jobId + ' successfully deleted'});
@@ -598,12 +605,48 @@ function mgr_js(win_config, mgrCmd, callback){
     return callback(null, mgrInfo);
 }
 
-function find_js(win_config, jobId, callback){
-    
-    return callback(null, fileList);
+function windir_js(win_config, jobId, callback){
+    // Check if the user is the owner of the job
+    getJobWorkDir(win_config, jobId, function(err, jobWorkingDir){
+        if(err){
+            return callback(err);
+        }
+        // TOOD: put in config file
+        var remote_cmd = ["dir", "/s", jobWorkingDir];
+        var output = spawnProcess(remote_cmd,"shell",null,win_config,{shell : true});
+        
+        // Transmit the error if any
+        if (output.stderr){
+            return callback(new Error(output.stderr.split(line_separator)[0]));
+        }
+        output.stdout = output.stdout.split(line_separator + line_separator);
+        
+        
+        var fileList        = [];
+        fileList.files      = [];
+        fileList.folders    = [];
+        
+        //Loop on folders, first line is header, last line is summary
+        for(var folder=1;folder<output.stdout.length-1;folder+=2){
+            // Directory
+            var folderPath = output.stdout[folder].match(dirRegEx)[1];
+            fileList.folders.push(folderPath);
+            
+            // Loop on files
+            var files = output.stdout[folder+1].split(line_separator);
+            for(var _f in files){
+                var fileName = files[_f].trim().split(/\s/g).pop();
+                if(fileName !== '.' && fileName !== '..'){
+                    fileList.files.push(path.resolve(folderPath, files[_f].trim().split(/\s/g).pop()));
+                }
+            }
+        }
+        
+        return callback(null, fileList);
+    });
 }
 
-function retrieve_js(win_config, jobId, fileList, localDir, callback){
+function winretrieve_js(win_config, jobId, fileList, localDir, callback){
     
     return callback(null,{
             "message"   : 'Files for the job ' + jobId + ' have all been retrieved in ' + localDir
@@ -646,6 +689,8 @@ module.exports = {
     windel_js             : windel_js,
     winqueues_js          : winqueues_js,
     winsub_js             : winsub_js,
+    windir_js             : windir_js,
+    winretrieve_js        : winretrieve_js,
     getJobWorkDir         : getJobWorkDir,
     createJobWorkDir      : createJobWorkDir
 };

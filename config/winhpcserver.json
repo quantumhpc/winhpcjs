@@ -8,7 +8,7 @@
         "secretAccessKey"       : "C:\\Users\\User\\.ssh\\id_rsa",
         "localCopy"             : "COPY",
         "binariesDir"           : "C:\\Program Files\\Microsoft HPC Pack 2008 R2\\Bin",
-        "useSharedDir"          : false,
-        "workingDir"            : "C:\\tmp",
-        "sharedDir"             : "C:\\tmp"
+        "useSharedDir"          : true,
+        "workingDir"            : "c:\\Scratch",
+        "sharedDir"             : "HEADNODE\\\\Scratch"
 }
