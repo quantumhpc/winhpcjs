@@ -4,7 +4,7 @@ Nodejs command wrapper for Windows HPC Cluster Manager
 ## Introduction
 Submit job to a Windows HPC server from a nodejs application and retrieve files from a working directory.
 
-For now only basic function are implemented: **qmgr -c 'p s'**, **qstat**, **qdel(jobId)**, **pbsnodes** and **pbsnodes(nodename)** and only support local installation.
+For now only basic function are implemented: **job list**, **job submit**, **job cancel(jobId)**, **nodes list** and only support local installation.
 
 ### Caveat
 Job's owner is the user running the nodejs process (usually an administrator) thus the info retrieve by `job list` always show the same username. 
