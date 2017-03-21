@@ -369,7 +369,7 @@ function wincancel_js(win_config,jobId,callback){
 // Return the full path of the SCRIPT
 /* jobArgs = {
     jobName         :   String      //  'Name="My Task"'
-    resources      :   String      //  'UnitType="Core" MinCores="1" MaxCores="1"'
+    resources       :   String      //  'UnitType="Core" MinCores="1" MaxCores="1"'
     walltime        :   String      //  'RuntimeSeconds="10860"'
     queue           :   String      //  'NodeGroups="AzureNodes,ComputeNode"'
     workdir         :   String      //  'WorkDirectory="workDirPath"'
@@ -380,6 +380,7 @@ function wincancel_js(win_config,jobId,callback){
     mailBegins      :   Boolean     //  'NotifyOnStart="true"'
     mailTerminates  :   Boolean     //  'NotifyOnCompletion="true"'
     commands        :   Array       //  'main commands to run'
+    env             :   Object       //  key/value pairs of environment variables
     },
     localPath   :   'path/to/save/script'
     callback    :   callback(err,scriptFullPath)
@@ -390,8 +391,8 @@ JobType="Batch"
 JobTemplate="Default"
 */
 function winscript_js(jobArgs, localPath, callback){
-    var toWrite = '<?xml version="1.0" encoding="utf-8"?>';
-    toWrite += line_separator + '<Job';
+    var toWrite = '<?xml version="1.0" encoding="utf-8"?>' + line_separator;
+    toWrite += '<Job';
     
     var jobName = jobArgs.jobName;
     
@@ -437,12 +438,30 @@ function winscript_js(jobArgs, localPath, callback){
         }
     }
     
+    // Close job
+    toWrite += '>' + line_separator;
+    
+    // EnvironmentVariables
+    if(jobArgs.env){
+        toWrite += '<EnvironmentVariables>' + line_separator;
+        
+        for(var _env in jobArgs.env){
+            toWrite += '<Variable>' + line_separator;
+            toWrite += '<Name>' + _env + '</Name>' + line_separator;
+            toWrite += '<Value>' + jobArgs.env[_env] + '</Value>' + line_separator;
+            toWrite += '</Variable>' + line_separator;
+        }
+        
+        // Close
+        toWrite += '</EnvironmentVariables>' + line_separator;
+    }
+    
     // Tasks
-    toWrite += '>' + line_separator + '<Tasks>';
+    toWrite += '<Tasks>' + line_separator;
     
     // Loop on tasks
     //TODO: allow multiple tasks
-        toWrite += line_separator + '<Task';
+        toWrite += '<Task';
         // Resources
         toWrite += jobArgs.resources;
         toWrite += ' Name="' + jobName + '"';
@@ -453,10 +472,10 @@ function winscript_js(jobArgs, localPath, callback){
         //Command
         toWrite += ' CommandLine="' + jobArgs.commands + '"';
         //End
-        toWrite += ' />';
+        toWrite += ' />' + line_separator;
     
     // End tasks
-    toWrite += line_separator + '</Tasks>' + line_separator + '</Job>';
+    toWrite += '</Tasks>' + line_separator + '</Job>';
     
     // Write to script
     fs.writeFileSync(scriptFullPath,toWrite);
