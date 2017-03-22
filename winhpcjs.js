@@ -172,8 +172,12 @@ function getJobWorkDir(win_config, jobId, callback){
 
 // Create a unique working directory in the global working directory from the config
 function createJobWorkDir(win_config, callback){
+    
     // Get configuration working directory and Generate a UID for the working dir
-    var jobWorkingDir = path.join(win_config.workingDir,createUID());
+    var workUID = createUID();
+    
+    // Get configuration working directory and Generate a UID for the working dir
+    var jobWorkingDir = path.join(win_config.workingDir,workUID);
     
     //Create workdir with 700 permissions
     var process = spawnProcess([win_shell, '/c', 'IF NOT EXIST ' + jobWorkingDir + ' ' + win_shell + ' /c mkdir ' +jobWorkingDir] ,"shell", null, win_config);
@@ -182,8 +186,17 @@ function createJobWorkDir(win_config, callback){
     if (process.stderr){
         return callback(new Error(process.stderr));
     }
+    
+    // Return a locally available job Directory
+    var mountedWorkingDir = null;
+    
+    // Can we create on the mounted Dir
+    if (win_config.useSharedDir){
+        mountedWorkingDir = path.join(win_config.sharedDir,workUID);
+    }
+    
     //TODO:handles error
-    return callback(null, jobWorkingDir);
+    return callback(null, jobWorkingDir, mountedWorkingDir);
 }
 
 // Set credentials with plain-text password on command line
