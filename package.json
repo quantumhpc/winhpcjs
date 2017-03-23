@@ -1,0 +1,25 @@
+{
+  "name": "winhpcjs",
+  "version": "1.0.0",
+  "description": "Wrapper for Windows HPC commands",
+  "main": "winhpcjs.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/quantumhpc/winhpcjs.git"
+  },
+  "keywords": [
+    "Windows",
+    "HPC",
+    "workload",
+    "manager",
+    "schedulings",
+    "jobs",
+    "batch"
+  ],
+  "author": "QUANTUM HPC Inc.",
+  "license": "AGPL-3.0",
+  "bugs": {
+    "url": "https://github.com/quantumhpc/winhpcjs/issues"
+  },
+  "homepage": "https://github.com/quantumhpc/winhpcjs#readme"
+}
