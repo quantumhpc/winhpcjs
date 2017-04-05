@@ -61,47 +61,14 @@ function spawnProcess(spawnCmd, spawnType, spawnDirection, win_config, opts){
     spawnOpts.timeout = 10000;
     switch (spawnType){
         case "shell":
-            switch (win_config.method){
-                case "ssh":
-                    spawnExec = win_config.sshExec;
-                    spawnCmd = [win_config.username + "@" + win_config.serverName,"-o","StrictHostKeyChecking=no","-i",win_config.secretAccessKey].concat(spawnCmd);
-                    break;
-                case "local":
-                    spawnExec = spawnCmd.shift();
-                    break; 
-            }
+            case "local":
+                spawnExec = spawnCmd.shift();
             break;
         //Copy the files according to the spawnCmd array : 0 is the file, 1 is the destination dir
         case "copy":
-            // Special case if we can use a shared file system
-            if (win_config.useSharedDir){
+            case "local":
                 spawnExec = win_config.localCopy;
                 spawnOpts.shell = true;
-            }else{
-                switch (win_config.method){
-                    // Build the scp command
-                    case "ssh":
-                        spawnExec = win_config.scpExec;
-                        var file;
-                        var destDir;
-                        switch (spawnDirection){
-                            case "send":
-                                file    = spawnCmd[0];
-                                destDir = win_config.username + "@" + win_config.serverName + ":" + spawnCmd[1];
-                                break;
-                            case "retrieve":
-                                file    = win_config.username + "@" + win_config.serverName + ":" + spawnCmd[0];
-                                destDir = spawnCmd[1];
-                                break;
-                        }
-                        spawnCmd = ["-o","StrictHostKeyChecking=no","-i",win_config.secretAccessKey,file,destDir];
-                        break;
-                    case "local":
-                        spawnExec = win_config.localCopy;
-                        spawnOpts.shell = true;
-                        break;
-                }
-            }
             break;
     }
     var spawnReturn = spawn(spawnExec, spawnCmd, spawnOpts);
@@ -510,7 +477,6 @@ function winscript_js(jobArgs, localPath, callback){
 }
 */
 function winsub_js(win_config, jobArgs, jobWorkingDir, callback){
-    var remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.submit);
     
     if(jobArgs.length < 1) {
         return callback(new Error('Please submit the script to run'));  
@@ -525,14 +491,27 @@ function winsub_js(win_config, jobArgs, jobWorkingDir, callback){
     }
     // Add script: first element of qsubArgs
     var scriptName = path.basename(jobArgs[0]);
-    remote_cmd.push("/jobfile:" + scriptName);
     
-    // Submit
-    var output = spawnProcess(remote_cmd,"shell",null,win_config, { cwd : jobWorkingDir});
+    // Use Node-IPC to submit the job as the username
+    if(win_config.useAgent){
+        
+    //Without agent, submit the job as the user running the process (Administrator)
+    }else{
+        var remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.submit);
+        remote_cmd.push("/jobfile:" + scriptName);
+    
+        // Submit
+        var output = spawnProcess(remote_cmd,"shell",null,win_config, { cwd : jobWorkingDir});
+    }
     // Transmit the error if any
     if (output.stderr){
         return callback(new Error(output.stderr.split(line_separator)[0]));
     }
+    // WinHPC requires password to be cached
+    if(output.stdout.indexOf('Remember this password') > -1){
+        return callback(new Error("Password has not been saved, use hpccred to cache your password"));
+    }
+    
     // Catch job Id
     var jobId = output.stdout.match(/.+?\:\s*([0-9]+)/)[1];
     
