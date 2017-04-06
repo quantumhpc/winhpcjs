@@ -18,7 +18,14 @@ var cproc = require('child_process');
 var spawn = cproc.spawnSync;
 var fs = require("fs");
 var path = require("path");
+var ipc = require('node-ipc');
+ipc.config.id = 'server';
+ipc.config.retry = 2000;
+ipc.config.silent = true;
+ipc.config.maxRetries = 2;
 var win_shell = process.env.comspec;
+var Service = require('node-windows').Service;
+
 var line_separator = "\r\n";
 var dirRegEx = /^\s*Directory of (.+)/;
 // General command dictionnary keeping track of implemented features
@@ -80,6 +87,155 @@ function spawnProcess(spawnCmd, spawnType, spawnDirection, win_config, opts){
         return spawnReturn;
     }
 }
+
+// Test if an agent is online,
+// Return (err, agentId)
+function submitToAgent(agentId, hpcUserConfig, jobFile, next){
+    
+    // Connect to AgentId        
+    ipc.connectTo(agentId,function(){
+        //Send ping, listen for pong
+        ipc.of[agentId].on('connect',function(){
+            ipc.of[agentId].emit('action',
+                {
+                    hpcUserConfig   :   hpcUserConfig,
+                    jobfile         :   jobFile
+                }
+            );
+        });
+        ipc.of[agentId].on('answer',function(data){
+            ipc.disconnect(agentId);
+            return next(null, data);
+        });
+        ipc.of[agentId].on('error', function(err){
+            if(err.code === 'ENOENT'){
+                return next(new Error('Agent is unreachable.'));
+            }else{
+                return next(err);
+            }
+        });
+    });
+}
+
+
+// Test if an agent is online,
+// Return (err, agentId)
+function pingAgent(agentId, next){
+    // Count ping-ping, destroy event is emitted even if it works
+    var pingPongTest = 0;
+        
+    // Connect to AgentId        
+    ipc.connectTo(agentId,function(){
+        //Send ping, listen for pong
+        ipc.of[agentId].on('connect',function(){
+            ipc.of[agentId].emit('ping');
+        });
+        ipc.of[agentId].on('pong',function(data){
+            ipc.disconnect(agentId);
+            return next(null, data);
+        });
+        ipc.of[agentId].on('error', function(err){
+            if(err.code === 'ENOENT'){
+                pingPongTest++;
+                if(pingPongTest === ipc.config.maxRetries){
+                    return next(new Error('Agent is unreachable.'));
+                }
+            }else{
+                return next(err);
+            }
+        });
+    });
+}
+
+// Test if an agent is online,
+// Return (err, agentId)
+function installAgent(win_config, install, next){
+    var agentName = "QHPC_" + win_config.username + "_Agent";
+    var daemonDir = path.join(process.cwd(), win_config.agentId);
+    var daemonXmlFile = path.join(daemonDir, "daemon", agentName + '.xml');
+    var once = true;
+    
+    try{
+        fs.mkdirSync(daemonDir);
+    }catch(e){}
+    
+    // Create a new service object
+    var svc = new Service({
+      name: agentName,
+      description: 'Quantum HPC Platform Agent for ' + win_config.username,
+      script: path.join(__dirname, 'agent.js'),
+      env: [{
+        name: "agentId",
+        value: win_config.agentId
+      },
+      {
+        name: "username",
+        value: win_config.username
+      }]
+    });
+    // Set a directory per agent
+    svc._directory = daemonDir;
+    svc.logOnAs.domain = win_config.domain;
+    svc.logOnAs.account = win_config.username;
+    svc.logOnAs.password = win_config.password;
+    
+    svc.on('error',function(err){
+        return next(err);
+    });
+    
+    // Listen for the "install" event, which indicates the
+    // process is available as a service.
+    svc.on('install',function(){
+        //Start the service
+        svc.start();
+    });
+
+    svc.on('start',function(){
+        if(once){
+            once = false;
+            // Delete password from file
+            fs.readFile(daemonXmlFile, 'utf8', function(err, xmlContent){
+                if(err){
+                    console.log(err);
+                }else{
+                    xmlContent = xmlContent.replace(
+                        /<password>.+?<\/password>/g,
+                        "<password>XXXXXX</password>");
+                    // Rewrite
+                    fs.writeFile(daemonXmlFile, xmlContent, 'utf8', function(err){
+                        if(err){
+                            return next(err);
+                        }else{
+                            // Success
+                            return next(null);
+                        }
+                    });
+                }
+            });
+        }
+    });
+    
+    // Listen for the "uninstall" event so we know when it's done.
+    svc.on('stop',function(){
+        // Uninstall the service.
+        if(once){
+            once = false;
+            svc.uninstall();
+        }
+    });
+        // Listen for the "uninstall" event so we know when it's done.
+    svc.on('uninstall',function(){
+        // Success
+        return next(null);
+    });
+    if(install){
+        svc.install();
+    }else{
+        svc.stop();
+    }
+}
+
+
 
 // Treat Windows HPC parameter list containing ':'
 function jsonifyParam(output){
@@ -494,15 +650,24 @@ function winsub_js(win_config, jobArgs, jobWorkingDir, callback){
     
     // Use Node-IPC to submit the job as the username
     if(win_config.useAgent){
-        
-    //Without agent, submit the job as the user running the process (Administrator)
+        submitToAgent(win_config.agentId, win_config, scriptName, function(err, output){
+            if (err){
+                return callback(err);
+            }else{
+                return submitCallback(output, callback);
+            }
+        });
     }else{
+        //Without agent, submit the job as the user running the process (Administrator)
         var remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.submit);
         remote_cmd.push("/jobfile:" + scriptName);
     
         // Submit
-        var output = spawnProcess(remote_cmd,"shell",null,win_config, { cwd : jobWorkingDir});
+        return submitCallback(spawnProcess(remote_cmd,"shell",null,win_config, { cwd : jobWorkingDir}), callback);
     }
+}
+
+function submitCallback(output, callback){
     // Transmit the error if any
     if (output.stderr){
         return callback(new Error(output.stderr.split(line_separator)[0]));
@@ -520,8 +685,8 @@ function winsub_js(win_config, jobArgs, jobWorkingDir, callback){
             "jobId"     : jobId,
             "path"      : jobWorkingDir
         });
+        
 }
-
 function winqueues_js(win_config, queueName, callback){
     // JobId is optionnal so we test on the number of args
     var args = [];
@@ -704,5 +869,7 @@ module.exports = {
     windir_js             : windir_js,
     winretrieve_js        : winretrieve_js,
     getJobWorkDir         : getJobWorkDir,
-    createJobWorkDir      : createJobWorkDir
+    createJobWorkDir      : createJobWorkDir,
+    pingAgent             : pingAgent,
+    installAgent          : installAgent
 };
