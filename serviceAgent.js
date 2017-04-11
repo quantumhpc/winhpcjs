@@ -6,19 +6,22 @@ var ipc = require('node-ipc');
 // Specific UserID socket
 if(process.argv[2]){
     // First try argument
-    ipc.config.id = process.argv[2].trim();
+    try{
+        ipc.config.id = process.argv[2].trim();
+    }catch(e){}
 }else{
     // Then environment
-    ipc.config.id = process.env.agentId.trim();
+    try{
+        ipc.config.id = process.env.agentId.trim();
+    }catch(e){
+        console.log("Unable to find a valid agentId");
+        process.exit(1);
+    }
 }
 
-if(ipc.config.id === undefined){
-    console.log("Unable to find a valid agentId");
-    process.exit(1);
-}
 // Default config
 ipc.config.retry    = 1500;
-ipc.config.silent   = false;
+ipc.config.silent   = true;
 ipc.config.sync     = true;
 
 ipc.serve(function(){
