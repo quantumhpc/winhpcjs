@@ -9,6 +9,7 @@ For now only basic function are implemented: **job list**, **job submit**, **job
 ### Caveat
 Job's owner is the user running the nodejs process (usually an administrator) thus the info retrieve by `job list` always show the same username. 
 Further modifications will come to get the correct owner on the job.
+* See the **winhpc_agents** branch for a possible workaroung *
 
 ## Basic usage
 Edit `./config/winhpcserver.json"` with your information
