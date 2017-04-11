@@ -243,6 +243,7 @@ function winnodes_js(win_config, controlCmd, nodeName, callback){
         }
         
         var output = spawnProcess(remote_cmd,"shell",null,win_config);
+        
         // Transmit the error if any
         if (output.stderr){
             return callback(new Error(output.stderr.split(line_separator)[0]));
@@ -502,7 +503,7 @@ function winsub_js(win_config, jobArgs, jobWorkingDir, callback){
                 return callback(err);
             }
             // Check ownership
-            if(pong.username === win_config.username){
+            if(pong.username === win_config.username && pong.domain === win_config.domain){
                 winAgent.submit(win_config, path.join(jobWorkingDir, scriptName), function(err, output){
                     if (err){
                         return callback(err);
@@ -525,7 +526,6 @@ function winsub_js(win_config, jobArgs, jobWorkingDir, callback){
 }
 
 function submitCallback(output, jobWorkingDir, callback){
-    console.log(output)
     // Transmit the error if any
     if (output.stderr){
         return callback(new Error(output.stderr.split(line_separator)[0]));
@@ -559,40 +559,16 @@ function winqueues_js(win_config, queueName, callback){
     callback = args.pop();
     
     var remote_cmd;
+    var queues = [];
     
-    // Info on a specific job
-    // if (args.length == 1){
-    //     queueName = args.pop();
-    //     remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.queue);
-    //     remote_cmd.push(queueName);
-    // }else{
-    //     remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.queues);
-    // }
-    
-    // var output = spawnProcess(remote_cmd,"shell",null,pbs_config);
-
-    // // Transmit the error if any
-    // if (output.stderr){
-    //     return callback(new Error(output.stderr.split(line_separator)[0]));
-    // }
-    // var queues = { name: 'exec_queue',
-    //     maxJobs: '0',
-    //     totalJobs: '0',
-    //     enabled: true,
-    //     started: true,
-    //     queued: '0',
-    //     running: '0',
-    //     held: '0',
-    //     waiting: '0',
-    //     moving: '0',
-    //     exiting: '0',
-    //     type: 'Execution',
-    //     completed: undefined };
-    var queues = [{ name: 'ComputeNodes',
-        maxJobs: '0',
-        queued: '0',
-        running: '0'
-    }];
+    // Return manual configuration until better wrapper implemented
+    for(var queue in win_config.nodeGroups){
+        queues.push({ name: win_config.nodeGroups[queue],
+            maxJobs: '0',
+            queued: '0',
+            running: '0'
+        });
+    }
     return callback(null, queues);
     
 }

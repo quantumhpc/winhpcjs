@@ -16,7 +16,7 @@ ipc.config.maxRetries = 2;
  * Windows Agents
  **********************************************************************/
 function configureAgent(win_config, next){
-    var agentName = "QHPC_" + win_config.username + "_Agent";
+    var agentName = "Agent";
     var daemonDir =  path.join(agentFolder, win_config.agentId);
     try{
         fs.mkdirSync(daemonDir);
@@ -25,7 +25,7 @@ function configureAgent(win_config, next){
     // Create a new service object
     var svc = new Service({
       name: agentName,
-      description: 'Quantum HPC Platform Agent for ' + win_config.username,
+      description: 'Agent for ' + win_config.username,
       script: path.join(__dirname, 'serviceAgent.js'),
       env: [{
         name: "agentId",
@@ -37,8 +37,6 @@ function configureAgent(win_config, next){
     svc._directory = daemonDir;
     
     svc.on('error',function(err){
-        console.log("error inside agent")
-        console.log(err)
         return next(err);
     });
     return next(null, svc);
@@ -63,7 +61,6 @@ function install(win_config, password, next){
         // process is available as a service.
         service.on('install',function(){
             //Start the service
-        console.log('installed')
             service.start();
         });
     
@@ -73,7 +70,7 @@ function install(win_config, password, next){
                 // Delete password from file
                 fs.readFile(daemonXmlFile, 'utf8', function(err, xmlContent){
                     if(err){
-                        console.log(err);
+                       return next(err);
                     }else{
                         // Supress password
                         xmlContent = xmlContent.replace(
@@ -84,8 +81,6 @@ function install(win_config, password, next){
                             if(err){
                                 return next(err);
                             }else{
-        console.log('success')
-        console.log(service.exists)
                                 // Success
                                 return next(null);
                             }
@@ -97,7 +92,6 @@ function install(win_config, password, next){
         
     
         //Install and start
-        console.log('installing')
         service.install();
     });
 }

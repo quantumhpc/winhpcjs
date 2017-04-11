@@ -4,7 +4,13 @@ var path = require("path");
 var ipc = require('node-ipc');
 
 // Specific UserID socket
-ipc.config.id = process.env.agentId;
+if(process.argv[2]){
+    // First try argument
+    ipc.config.id = process.argv[2].trim();
+}else{
+    // Then environment
+    ipc.config.id = process.env.agentId.trim();
+}
 
 if(ipc.config.id === undefined){
     console.log("Unable to find a valid agentId");
@@ -15,7 +21,6 @@ ipc.config.retry    = 1500;
 ipc.config.silent   = false;
 ipc.config.sync     = true;
 
-
 ipc.serve(function(){
         
         // Ping-pong test
@@ -23,7 +28,8 @@ ipc.serve(function(){
             ipc.server.emit(socket,'pong',
                 {
                     id          : ipc.config.id,
-                    username    : process.env.USERNAME
+                    username    : process.env.USERNAME,
+                    domain      : process.env.USERDOMAIN
                 }
             );
         });
@@ -46,7 +52,5 @@ ipc.serve(function(){
         });
     }
 );
-
-
 
 ipc.server.start();
