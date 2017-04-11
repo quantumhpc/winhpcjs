@@ -6,9 +6,7 @@ var ipc = require('node-ipc');
 // Specific UserID socket
 if(process.argv[2]){
     // First try argument
-    try{
-        ipc.config.id = process.argv[2].trim();
-    }catch(e){}
+    ipc.config.id = process.argv[2].trim();
 }else{
     // Then environment
     try{

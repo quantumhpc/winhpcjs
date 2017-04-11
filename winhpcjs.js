@@ -157,16 +157,8 @@ function createJobWorkDir(win_config, callback){
         return callback(new Error(process.stderr));
     }
     
-    // Return a locally available job Directory
-    var mountedWorkingDir = null;
-    
-    // Can we create on the mounted Dir
-    if (win_config.useSharedDir){
-        mountedWorkingDir = path.join(win_config.sharedDir,workUID);
-    }
-    
     //TODO:handles error
-    return callback(null, jobWorkingDir, mountedWorkingDir);
+    return callback(null, jobWorkingDir);
 }
 
 // Set credentials with plain-text password on command line
