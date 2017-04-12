@@ -158,7 +158,8 @@ function createJobWorkDir(win_config, callback){
     }
     
     //TODO:handles error
-    return callback(null, jobWorkingDir);
+    // Return the UNC Path
+    return callback(null, path.join(win_config.sharedDir,workUID));
 }
 
 // Set credentials with plain-text password on command line
@@ -367,6 +368,7 @@ JobType="Batch"
 JobTemplate="Default"
 */
 function winscript_js(jobArgs, localPath, callback){
+    
     var toWrite = '<?xml version="1.0" encoding="utf-8"?>' + line_separator;
     toWrite += '<Job';
     
@@ -495,7 +497,7 @@ function winsub_js(win_config, jobArgs, jobWorkingDir, callback){
                 return callback(err);
             }
             // Check ownership
-            if(pong.username === win_config.username && pong.domain === win_config.domain){
+            if(pong.username.toUpperCase() === win_config.username.toUpperCase() && pong.domain.toUpperCase() === win_config.domain.toUpperCase()){
                 winAgent.submit(win_config, path.join(jobWorkingDir, scriptName), function(err, output){
                     if (err){
                         return callback(err);
