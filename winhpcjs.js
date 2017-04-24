@@ -92,15 +92,17 @@ function jsonifyParam(output){
     var results={};
     for (var i = 0; i < output.length; i++) {
         if (output[i].indexOf(':')!== -1){
+            
             // Split key and value to 0 and 1
             var data = output[i].split(':');
-
-            var label = data[0].trim();
-            var value = data[1].trim();
+            
+            var label = data.shift().trim();
+            var value = data.join(':').trim();
             // Convert JobId to number for better sorting
             if(label === "Id"){
                 value = Number(value);
             }
+            
             results[label] = value;
         }
     }
