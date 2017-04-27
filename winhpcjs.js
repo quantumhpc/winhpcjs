@@ -348,12 +348,13 @@ function wincancel_js(win_config,jobId,callback){
 // Return the full path of the SCRIPT
 /* jobArgs = {
     jobName         :   String      //  'Name="My Task"'
+    taskName         :   String     //   Array of task names (optional)
     resources       :   String      //  'UnitType="Core" MinCores="1" MaxCores="1"'
     walltime        :   String      //  'RuntimeSeconds="10860"'
     queue           :   String      //  'NodeGroups="AzureNodes,ComputeNode"'
-    workdir         :   String      //  'WorkDirectory="workDirPath"'
-    stdout          :   String      //  'StdOutFilePath="outFile"'
-    stderr          :   String      //  'StdErrFilePath="errFile"'
+    workdir         :   String      //  'WorkDirectory="workDirPath"' || Array of task workdir
+    stdout          :   String      //  'StdOutFilePath="outFile"' || Array of task stdout
+    stderr          :   String      //  'StdErrFilePath="errFile"' || Array of task stderr
     exclusive       :   Boolean     //  'IsExclusive="false"'
     mail            :   String      //  'EmailAddress="test@Test.com"'
     mailBegins      :   Boolean     //  'NotifyOnStart="true"'
@@ -439,21 +440,37 @@ function winscript_js(jobArgs, localPath, callback){
     // Tasks
     toWrite += '<Tasks>' + line_separator;
     
+    // Per-task parameters or global
+    if(!(Array.isArray(jobArgs.commands))){
+        jobArgs.commands = [jobArgs.commands];
+    }
+    // Single task name or not provided
+    if(!jobArgs.taskName){
+        jobArgs.taskName = jobArgs.jobName.toString();
+    }
+    // Translate each parameter into an array of same size as commands
+    var perTaskCmds = ["taskName", "workdir", "stdout", "stderr"];
+    perTaskCmds.forEach(function(k){
+        if(!(Array.isArray(jobArgs[k]))){
+            jobArgs[k] = new Array(jobArgs.commands.length).fill(jobArgs[k]);
+        }
+    });
+    
     // Loop on tasks
-    //TODO: allow multiple tasks
+    for(var task in jobArgs.commands){
         toWrite += '<Task';
         // Resources
         toWrite += jobArgs.resources;
-        toWrite += ' Name="' + jobName + '"';
+        toWrite += ' Name="' + jobArgs.taskName[task] + '"';
         // Workdir
-        toWrite += ' WorkDirectory="' + jobArgs.workdir + '"';
+        toWrite += ' WorkDirectory="' + jobArgs.workdir[task] + '"';
         //Stdout and err
-        toWrite += ' StdOutFilePath="' + jobArgs.stdout + '" StdErrFilePath="' + jobArgs.stderr + '"';
+        toWrite += ' StdOutFilePath="' + jobArgs.stdout[task] + '" StdErrFilePath="' + jobArgs.stderr[task] + '"';
         //Command
-        toWrite += ' CommandLine="' + jobArgs.commands + '"';
+        toWrite += ' CommandLine="' + jobArgs.commands[task] + '"';
         //End
         toWrite += ' />' + line_separator;
-    
+    }
     // End tasks
     toWrite += '</Tasks>' + line_separator + '</Job>';
     
