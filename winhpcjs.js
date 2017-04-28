@@ -19,21 +19,27 @@ var spawn = cproc.spawnSync;
 var fs = require("fs");
 var path = require("path");
 var win_shell = process.env.comspec;
+var powershell = "C:\\Windows\\system32\\WindowsPowerShell\\v1.0\\powershell.exe";
+var HPCsnapIn = "Add-PSSnapIn Microsoft.HPC;";
+// Format Powershell output as list
+var powershellFormat = " | Format-List -Property *";
 var line_separator = "\r\n";
 var dirRegEx = /^\s*Directory of (.+)/;
 var winAgent = require("./winAgent");
 
 // General command dictionnary keeping track of implemented features
 var cmdDict = {
-    "setcreds" :   ["hpccred ", "setcreds"],
-    "delcreds" :   ["hpccred ", "delcreds"],
-    "job"      :   ["job", "view", "/detailed:true"],
-    "jobs"     :   ["job", "list", "/all", "/format:list"],
-    "task"      :  ["task", "view", "/detailed:true"],
-    "node"     :   ["node"],
-    "nodes"    :   ["node", "list", "/format:list"],
-    "submit"   :   ["job", "submit"],
-    "delete"   :   ["job", "cancel"],
+    // "setcreds"  :   ["hpccred ", "setcreds"],
+    // "delcreds"  :   ["hpccred ", "delcreds"],
+    "job"       :   "Get-HpcJob ID",
+    "jobs"      :   "Get-HpcJob -State All",
+    "task"      :   "Get-HpcTask -JobId ID",
+    "node"      :   "Get-HpcNode ID",
+    "nodes"     :   "Get-HpcNode",
+    "group"     :   "Get-HpcGroup",
+    "groups"    :   "Get-HpcGroup",
+    "submit"    :   "New-HpcJob -JobFile ID | Submit-HpcJob",
+    "cancel"    :   "Stop-HpcJob ID"
     };
     
 var nodeControlCmd = {
@@ -43,8 +49,10 @@ var nodeControlCmd = {
 };
 
 // Helper function to return an array with [full path of exec, arguments] from a command of the cmdDict
-function cmdBuilder(binPath, cmdDictElement){
-    return [path.join(binPath, cmdDictElement[0])].concat(cmdDictElement.slice(1,cmdDictElement.length));
+function cmdBuilder(binPath, cmdDictElement, element){
+    // Format as list in the end
+    return [powershell, "-Command", HPCsnapIn + cmdDictElement.replace("ID",element) + powershellFormat];
+    // return [path.join(binPath, cmdDictElement[0])].concat(cmdDictElement.slice(1,cmdDictElement.length));
 }
 
 // Parse the command and return stdout of the process depending on the method
@@ -75,34 +83,27 @@ function spawnProcess(spawnCmd, spawnType, spawnDirection, win_config, opts){
     }
     var spawnReturn = spawn(spawnExec, spawnCmd, spawnOpts);
     
-    // Restart on first connect
-    if(spawnReturn.stderr && spawnReturn.stderr.indexOf("Warning: Permanently added") > -1){
-        return spawn(spawnExec, spawnCmd, spawnOpts);
-    }else{
-        return spawnReturn;
-    }
+    return spawnReturn;
 }
 
 
 // Treat Windows HPC parameter list containing ':'
 function jsonifyParam(output){
-    //Separate each line
-    output = output.split(line_separator);
+    //Separate each line and do not split continuing line
+    output = output.split(/\r\n(?!\s{4,})/g);
     // Look for properties
     var results={};
     for (var i = 0; i < output.length; i++) {
         if (output[i].indexOf(':')!== -1){
-            
             // Split key and value to 0 and 1
             var data = output[i].split(':');
-            
             var label = data.shift().trim();
-            var value = data.join(':').trim();
+            // Replace split line by a single space
+            var value = data.join(':').trim().replace(/\r\n/g,"").replace(/\s{4,}/g," ");
             // Convert JobId to number for better sorting
             if(label === "Id"){
                 value = Number(value);
             }
-            
             results[label] = value;
         }
     }
@@ -127,7 +128,7 @@ function insertUsername(win_config){
 function getJobWorkDir(win_config, jobId, callback){
     
     // Retrive Path
-    winjobs_js(win_config, jobId, function(err,data){
+    winjobs(win_config, jobId, function(err,data){
         if(err){
             return callback(err);
         }
@@ -165,7 +166,7 @@ function createJobWorkDir(win_config, callback){
 }
 
 // Set credentials with plain-text password on command line
-function winCreds(win_config, password, callback){
+function wincreds(win_config, password, callback){
     
     var remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.setcreds);
     // User
@@ -184,19 +185,19 @@ function winCreds(win_config, password, callback){
 }
 
 // Interface for Win HPC NODE
-/** winnodes_js(
+/** winnodes(
     config          :   array of configuration parameters
     controlCmd      :   online/offline
     nodeName        :   node to put on/off line or view info
     callback)
     
     Methods:
-    Node list       :   winnodes_js(config, callback)
-    Node info       :   winnodes_js(config, nodeName, callback)
-    Node control    :   winnodes_js(config, controlCmd, nodeName, callback)
+    Node list       :   winnodes(config, callback)
+    Node info       :   winnodes(config, nodeName, callback)
+    Node control    :   winnodes(config, controlCmd, nodeName, callback)
     
 **/
-function winnodes_js(win_config, controlCmd, nodeName, callback){
+function winnodes(win_config, controlCmd, nodeName, callback){
         // controlCmd & nodeName are optionnal so we test on the number of args
         var args = [];
         for (var i = 0; i < arguments.length; i++) {
@@ -211,7 +212,7 @@ function winnodes_js(win_config, controlCmd, nodeName, callback){
         
         var remote_cmd;
         var parseOutput = true;
-        var detailedInfo = false;
+        var singleNode = false;
         
         // Command, Nodename or default
         switch (args.length){
@@ -227,10 +228,8 @@ function winnodes_js(win_config, controlCmd, nodeName, callback){
             case 1:
                 // Node specific info
                 nodeName = args.pop();
-                remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.node);
-                remote_cmd = remote_cmd.concat(nodeControlCmd.view);
-                remote_cmd.push(nodeName);
-                detailedInfo = true;
+                remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.node, nodeName);
+                singleNode = true;
                 break;
             default:
                 // Default
@@ -245,7 +244,7 @@ function winnodes_js(win_config, controlCmd, nodeName, callback){
         }
         
         if (parseOutput){
-            if(detailedInfo){
+            if(singleNode){
                 // Parse info on a node
                 return callback(null, jsonifyParam(output.stdout));
             }else{
@@ -268,17 +267,17 @@ function winnodes_js(win_config, controlCmd, nodeName, callback){
 }
 
 // Interface for Win HPC JOBS
-/** winjobs_js(
+/** winjobs(
     config          :   array of configuration parameters
     jobName         :   job specific info
     callback)
     
     Methods:
-    Job list        :   winjobs_js(config, callback)
-    Job info       :    winjobs_js(config, jobName, callback)
+    Job list        :   winjobs(config, callback)
+    Job info       :    winjobs(config, jobName, callback)
     
 **/
-function winjobs_js(win_config, jobId, callback){
+function winjobs(win_config, jobId, callback){
     // JobId is optionnal so we test on the number of args
     var args = [];
     // Boolean to indicate if we want the job list
@@ -297,11 +296,9 @@ function winjobs_js(win_config, jobId, callback){
     var remote_cmd;
     
     // Info on a specific job
-    //TODO: implement 'job view' on all jobs
     if (args.length == 1 && jobId !== 'all'){
         jobId = args.pop();
-        remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.job);
-        remote_cmd.push(jobId);
+        remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.job, jobId);
         jobList = false;
     }else{
         remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.jobs);
@@ -314,25 +311,15 @@ function winjobs_js(win_config, jobId, callback){
     }
     // Job info or list
     if (jobList){
-        output = output.stdout.split(line_separator + line_separator);
+        output = output.stdout.trim().split(line_separator + line_separator);
         // Parse jobs
         var jobs = [];
-        // Last element is Job numbers
-        for (var j = 0; j < output.length-1; j++) {
+        for (var j = 0; j < output.length; j++) {
             jobs.push(jsonifyParam(output[j]));
         }
         return callback(null, jobs);
     }else{
-        // Assuming a mono-task job, get further info with task view
-        remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.task);
-        remote_cmd.push(jobId + ".1");
-        var output2 = spawnProcess(remote_cmd,"shell",null,win_config);
-        // Transmit the error if any
-        if (output2.stderr){
-            return callback(new Error(output2.stderr.split(line_separator)[0]));
-        }
-        // Return detailed info on a job
-        return callback(null,jsonifyParam(output.stdout + output2.stdout));
+        return callback(null,jsonifyParam(output.stdout));
     }
 }
 
@@ -370,7 +357,7 @@ RunUntilCanceled="false"
 JobType="Batch"
 JobTemplate="Default"
 */
-function winscript_js(jobArgs, localPath, callback){
+function winscript(jobArgs, localPath, callback){
     
     var toWrite = '<?xml version="1.0" encoding="utf-8"?>' + line_separator;
     toWrite += '<Job';
@@ -485,7 +472,7 @@ function winscript_js(jobArgs, localPath, callback){
 
 // Interface for job submit
 // Submit a script by its absolute path
-// winsub_js(
+// winsubmit(
 /*    
         win_config      :   config,
         jobArgs         :   array of required files to send to the server with the script in 0,
@@ -493,7 +480,7 @@ function winscript_js(jobArgs, localPath, callback){
         callack(message, jobId, jobWorkingDir)
 }
 */
-function winsub_js(win_config, jobArgs, jobWorkingDir, callback){
+function winsubmit(win_config, jobArgs, jobWorkingDir, callback){
     
     if(jobArgs.length < 1) {
         return callback(new Error('Please submit the script to run'));  
@@ -508,7 +495,6 @@ function winsub_js(win_config, jobArgs, jobWorkingDir, callback){
     }
     // Add script: first element of qsubArgs
     var scriptName = path.basename(jobArgs[0]);
-    
     // Use Node-IPC to submit the job as the username
     if(win_config.useAgent){
         winAgent.ping(win_config, function(err, pong){
@@ -530,8 +516,7 @@ function winsub_js(win_config, jobArgs, jobWorkingDir, callback){
         });
     }else{
         //Without agent, submit the job as the user running the process (Administrator)
-        var remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.submit);
-        remote_cmd.push("/jobfile:" + scriptName);
+        var remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.submit, scriptName);
     
         // Submit
         return submitCallback(spawnProcess(remote_cmd,"shell",null,win_config, { cwd : jobWorkingDir}), jobWorkingDir, callback);
@@ -543,11 +528,11 @@ function submitCallback(output, jobWorkingDir, callback){
     if (output.stderr){
         return callback(new Error(output.stderr.split(line_separator)[0]));
     }
+    // TODO: parse output for powershell
     // WinHPC requires password to be cached
     if(output.stdout.indexOf('Remember this password') > -1){
         return callback(new Error("Password has not been saved, use hpccred to cache your password"));
     }
-    
     // Catch job Id
     var jobId = output.stdout.match(/.+?\:\s*([0-9]+)/)[1];
     
@@ -558,8 +543,8 @@ function submitCallback(output, jobWorkingDir, callback){
         });
         
 }
-function winqueues_js(win_config, queueName, callback){
-    // JobId is optionnal so we test on the number of args
+function wingroups(win_config, groupName, callback){
+    // groupName is optionnal so we test on the number of args
     var args = [];
     for (var i = 0; i < arguments.length; i++) {
         args.push(arguments[i]);
@@ -572,23 +557,39 @@ function winqueues_js(win_config, queueName, callback){
     callback = args.pop();
     
     var remote_cmd;
-    var queues = [];
+    var groupList = true;
     
-    // Return manual configuration until better wrapper implemented
-    for(var queue in win_config.nodeGroups){
-        queues.push({ name: win_config.nodeGroups[queue],
-            maxJobs: '0',
-            queued: '0',
-            running: '0'
-        });
+    // Info on a specific job
+    if (args.length == 1){
+        groupName = args.pop();
+        remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.group, groupName);
+    }else{
+        remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.groups);
     }
-    return callback(null, queues);
+    var output = spawnProcess(remote_cmd,"shell",null,win_config);
     
+    // Transmit the error if any
+    if (output.stderr){
+        return callback(new Error(output.stderr.split(line_separator)[0]));
+    }
+    
+    // Group info or list
+    if (groupList){
+        output = output.stdout.trim().split(line_separator + line_separator);
+        // Parse groups
+        var groups = [];
+        for (var j = 0; j < output.length; j++) {
+            groups.push(jsonifyParam(output[j]));
+        }
+        return callback(null, groups);
+    }else{
+        return callback(null,jsonifyParam(output.stdout));
+    }
 }
 
-// Interface for Job delete
+// Interface for Stop-hpcjob
 // Delete the specified job Id and return the message and the status code
-function windel_js(win_config,jobId,callback){
+function wincancel(win_config,jobId,callback){
     // JobId is optionnal so we test on the number of args
     var args = [];
     for (var i = 0; i < arguments.length; i++) {
@@ -601,14 +602,14 @@ function windel_js(win_config,jobId,callback){
     // last argument is the callback function
     callback = args.pop();
     
-    var remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.delete);
+    var remote_cmd;
     
     if (args.length !== 1){
         // Return an error
         return callback(new Error('Please specify the jobId'));
     }else{
         jobId = args.pop();
-        remote_cmd.push(jobId);
+        remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.cancel, jobId);
     }
     
     var output = spawnProcess(remote_cmd,"shell",null,win_config);
@@ -628,7 +629,7 @@ function mgr_js(win_config, mgrCmd, callback){
     return callback(null, mgrInfo);
 }
 
-function windir_js(win_config, jobId, callback){
+function windir(win_config, jobId, callback){
     // Check if the user is the owner of the job
     getJobWorkDir(win_config, jobId, function(err, jobWorkingDir){
         if(err){
@@ -670,7 +671,7 @@ function windir_js(win_config, jobId, callback){
     });
 }
 
-function winretrieve_js(win_config, jobId, fileList, localDir, callback){
+function winretrieve(win_config, jobId, fileList, localDir, callback){
     
     return callback(null,{
             "message"   : 'Files for the job ' + jobId + ' have all been retrieved in ' + localDir
@@ -706,15 +707,15 @@ function parseResources(resources){
 
 
 module.exports = {
-    winCreds              : winCreds,
-    winnodes_js           : winnodes_js,
-    winjobs_js            : winjobs_js,
-    winscript_js          : winscript_js,
-    windel_js             : windel_js,
-    winqueues_js          : winqueues_js,
-    winsub_js             : winsub_js,
-    windir_js             : windir_js,
-    winretrieve_js        : winretrieve_js,
+    wincreds              : wincreds,
+    winnodes              : winnodes,
+    winjobs               : winjobs,
+    winscript             : winscript,
+    wincancel             : wincancel,
+    wingroups             : wingroups,
+    winsubmit             : winsubmit,
+    windir                : windir,
+    winretrieve           : winretrieve,
     getJobWorkDir         : getJobWorkDir,
     createJobWorkDir      : createJobWorkDir
 };
