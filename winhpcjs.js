@@ -461,13 +461,19 @@ function winscript(jobArgs, localPath, callback){
     // End tasks
     toWrite += '</Tasks>' + line_separator + '</Job>';
     
-    // Write to script
-    fs.writeFileSync(scriptFullPath,toWrite);
-    
-    return callback(null, {
-        "message"   :   'Script for job ' + jobName + ' successfully created',
-        "path"      :   scriptFullPath
+    // Write to script, delete file if exists
+    fs.unlink(scriptFullPath, function(err){
+        // Ignore error if no file
+        if (err && err.code !== 'ENOENT'){
+            return callback(new Error("Cannot remove the existing file."));
+        }
+        fs.writeFileSync(scriptFullPath,toWrite);
+        
+        return callback(null, {
+            "message"   :   'Script for job ' + jobName + ' successfully created',
+            "path"      :   scriptFullPath
         });
+    });
 }
 
 // Interface for job submit
@@ -488,9 +494,12 @@ function winsubmit(win_config, jobArgs, jobWorkingDir, callback){
     
     // Send files by the copy command defined
     for (var i = 0; i < jobArgs.length; i++){
-        var copyCmd = spawnProcess([jobArgs[i],jobWorkingDir],"copy","send",win_config);
-        if (copyCmd.stderr){
-            return callback(new Error(copyCmd.stderr));
+        // Copy only different files
+        if(path.normalize(jobArgs[i]) !== path.join(jobWorkingDir, path.basename(jobArgs[i]))){
+            var copyCmd = spawnProcess([jobArgs[i],jobWorkingDir],"copy","send",win_config);
+            if (copyCmd.stderr){
+                return callback(new Error(copyCmd.stderr));
+            }
         }
     }
     // Add script: first element of qsubArgs
