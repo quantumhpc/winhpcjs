@@ -56,6 +56,9 @@ var nodeControlCmd = {
     'offline'   :  ["offline"]
 };
 
+// Functions available in Command Prompt and Powershell
+var winFn = {};
+
 // Helper function to return an array with [full path of exec, arguments] from a command of the cmdDict
 function cmdBuilder(binPath, cmdDictElement, element){
     var mainCmd = cmdDictElement.shift();
@@ -251,7 +254,7 @@ function wincreds(win_config, password, callback){
     Node control    :   winnodes(config, true/false, controlCmd, nodeName, callback)
     
 **/
-function winnodes(ps, win_config, controlCmd, nodeName, callback){
+winFn.nodes = function(ps, win_config, controlCmd, nodeName, callback){
         // controlCmd & nodeName are optionnal so we test on the number of args
         var args = Array.prototype.slice.call(arguments);
         
@@ -376,7 +379,7 @@ function psmetric(win_config, metricName, callback){
     Job info       :    winjobs(config, jobName, callback)
     
 **/
-function winjobs(ps, win_config, jobId, callback){
+winFn.jobs = function(ps, win_config, jobId, callback){
     // JobId is optionnal so we test on the number of args
     var args = Array.prototype.slice.call(arguments);
     // Boolean to indicate if we want the job list
@@ -415,7 +418,9 @@ function winjobs(ps, win_config, jobId, callback){
         // Parse jobs
         var jobs = [];
         for (var j = 0; j < output.length; j++) {
-            jobs.push(jsonifyParam(output[j]));
+            if(output[j].length > 1){
+                jobs.push(jsonifyParam(output[j]));
+            }
         }
         return callback(null, jobs);
     }else{
@@ -581,7 +586,7 @@ function winscript(jobArgs, localPath, callback){
         callack(message, jobId, jobWorkingDir)
 }
 */
-function winsubmit(ps, win_config, jobArgs, jobWorkingDir, callback){
+winFn.submit = function(ps, win_config, jobArgs, jobWorkingDir, callback){
     
     var node_prefix = "";
     if(ps === true && !win_config.useAgent){
@@ -696,7 +701,7 @@ function psgroups(win_config, groupName, callback){
 
 // Interface for Stop-hpcjob
 // Delete the specified job Id and return the message and the status code
-function wincancel(ps, win_config, jobId, callback){
+winFn.cancel = function(ps, win_config, jobId, callback){
     // JobId is optionnal so we test on the number of args
     var args = Array.prototype.slice.call(arguments);
 
@@ -814,50 +819,7 @@ function parseResources(resources){
     return ' UnitType="' + unitType + '" Min' + unitType + 's="' + unitValue + '" Max' + unitType + 's="' + unitValue + '"';
 }
 
-
-
-module.exports = {
-    // Create functions available in command prompt and powershell
-    winnodes            : function(){
-        var args = Array.prototype.slice.call(arguments);
-        args.unshift(false);
-        return winnodes.apply(this, args);
-    },
-    psnodes             : function(){
-        var args = Array.prototype.slice.call(arguments);
-        args.unshift(true);
-        return winnodes.apply(this, args);
-    },
-    winjobs            : function(){
-        var args = Array.prototype.slice.call(arguments);
-        args.unshift(false);
-        return winjobs.apply(this, args);
-    },
-    psjobs             : function(){
-        var args = Array.prototype.slice.call(arguments);
-        args.unshift(true);
-        return winjobs.apply(this, args);
-    },
-    winsubmit            : function(){
-        var args = Array.prototype.slice.call(arguments);
-        args.unshift(false);
-        return winsubmit.apply(this, args);
-    },
-    pssubmit             : function(){
-        var args = Array.prototype.slice.call(arguments);
-        args.unshift(true);
-        return winsubmit.apply(this, args);
-    },
-    wincancel            : function(){
-        var args = Array.prototype.slice.call(arguments);
-        args.unshift(false);
-        return wincancel.apply(this, args);
-    },
-    pscancel             : function(){
-        var args = Array.prototype.slice.call(arguments);
-        args.unshift(true);
-        return wincancel.apply(this, args);
-    },
+var modules = {
     // Command prompt only functions
     winscript           : winscript,
     wincreds            : wincreds,
@@ -869,3 +831,21 @@ module.exports = {
     psgroups            : psgroups,
     psmetric            : psmetric
 };
+
+// Create a "win" (Command prompt) version and a "ps" (Powershell) version
+for(var fn in winFn){
+    (function (_f) {
+        modules["win" + _f] = function(){
+            var args = Array.prototype.slice.call(arguments);
+            args.unshift(false);
+            return winFn[_f].apply(this, args);
+        };
+        modules["ps" + _f] = function(){
+            var args = Array.prototype.slice.call(arguments);
+            args.unshift(true);
+            return winFn[_f].apply(this, args);
+        };
+    })(fn);
+}
+
+module.exports = modules;
