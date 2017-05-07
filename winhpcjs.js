@@ -255,76 +255,76 @@ function wincreds(win_config, password, callback){
     
 **/
 winFn.nodes = function(ps, win_config, controlCmd, nodeName, callback){
-        // controlCmd & nodeName are optionnal so we test on the number of args
-        var args = Array.prototype.slice.call(arguments);
-        
-        // first argument is powershell flag and the config file
-        ps = args.shift();    
-        var node_prefix = "";
-        if(ps === true){
-            node_prefix = "ps";
-        }
-        win_config = args.shift();
-        
-        // last argument is the callback function
-        callback = args.pop();
-        
-        var remote_cmd;
-        var parseOutput = true;
-        var singleNode = false;
-        
-        // Command, Nodename or default
-        switch (args.length){
-            case 2:
-                // Node control
-                nodeName = args.pop();
-                controlCmd = args.pop();
-                remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.node);
-                remote_cmd = remote_cmd.concat(nodeControlCmd[controlCmd]);
-                remote_cmd.push(nodeName);
-                parseOutput = false;
-                break;
-            case 1:
-                // Node specific info
-                nodeName = args.pop();
-                remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict[node_prefix + "node"], nodeName);
-                singleNode = true;
-                break;
-            default:
-                // Default
-                remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict[node_prefix + "nodes"]);
-        }
-        
-        var output = spawnProcess(remote_cmd,"shell",null,win_config);
-        
-        // Transmit the error if any
-        if (output.stderr){
-            return callback(new Error(output.stderr.split(line_separator)[0]));
-        }
-        
-        if (parseOutput){
-            if(singleNode){
-                // Parse info on a node
-                return callback(null, jsonifyParam(output.stdout));
-            }else{
-                // Parse and save nodes
-                var nodes = [];
-                // Separate each node
-                output = output.stdout.split(line_separator + line_separator);
-                //Loop on each node
-                for (var j = 0; j < output.length; j++) {
-                    if (output[j].length>1){
-                        nodes.push(jsonifyParam(output[j]));
-                    }
-                }
-                return callback(null, nodes);
-            }
+    // controlCmd & nodeName are optionnal so we test on the number of args
+    var args = Array.prototype.slice.call(arguments);
+    
+    // first argument is powershell flag and the config file
+    ps = args.shift();    
+    var node_prefix = "";
+    if(ps === true){
+        node_prefix = "ps";
+    }
+    win_config = args.shift();
+    
+    // last argument is the callback function
+    callback = args.pop();
+    
+    var remote_cmd;
+    var parseOutput = true;
+    var singleNode = false;
+    
+    // Command, Nodename or default
+    switch (args.length){
+        case 2:
+            // Node control
+            nodeName = args.pop();
+            controlCmd = args.pop();
+            remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.node);
+            remote_cmd = remote_cmd.concat(nodeControlCmd[controlCmd]);
+            remote_cmd.push(nodeName);
+            parseOutput = false;
+            break;
+        case 1:
+            // Node specific info
+            nodeName = args.pop();
+            remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict[node_prefix + "node"], nodeName);
+            singleNode = true;
+            break;
+        default:
+            // Default
+            remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict[node_prefix + "nodes"]);
+    }
+    
+    var output = spawnProcess(remote_cmd,"shell",null,win_config);
+    
+    // Transmit the error if any
+    if (output.stderr){
+        return callback(new Error(output.stderr.split(line_separator)[0]));
+    }
+    
+    if (parseOutput){
+        if(singleNode){
+            // Parse info on a node
+            return callback(null, jsonifyParam(output.stdout));
         }else{
-            return callback(null, { 
-                "message"   : 'Node ' + nodeName + ' put in ' + controlCmd + ' state.',
-            });
+            // Parse and save nodes
+            var nodes = [];
+            // Separate each node
+            output = output.stdout.split(line_separator + line_separator);
+            //Loop on each node
+            for (var j = 0; j < output.length; j++) {
+                if (output[j].length>1){
+                    nodes.push(jsonifyParam(output[j]));
+                }
+            }
+            return callback(null, nodes);
         }
-}
+    }else{
+        return callback(null, { 
+            "message"   : 'Node ' + nodeName + ' put in ' + controlCmd + ' state.',
+        });
+    }
+};
 
 // Interface for Win HPC Metric Value
 /** psmetric(
@@ -333,39 +333,37 @@ winFn.nodes = function(ps, win_config, controlCmd, nodeName, callback){
     callback)
 **/
 function psmetric(win_config, metricName, callback){
-        // controlCmd & nodeName are optionnal so we test on the number of args
-        var args = Array.prototype.slice.call(arguments);
+    // controlCmd & nodeName are optionnal so we test on the number of args
+    var args = Array.prototype.slice.call(arguments);
+
+    // first argument is the config file
+    win_config = args.shift();
+
+    // last argument is the callback function
+    callback = args.pop();
     
-        // first argument is the config file
-        win_config = args.shift();
+    var remote_cmd;
+    // Metric or all
+    switch (args.length){
+        case 1:
+            // Specific metric
+            metricName = args.pop();
+            remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.metric, metricName);
+            break;
+        default:
+            // Default
+            remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.metrics);
+    }
     
-        // last argument is the callback function
-        callback = args.pop();
-        
-        var remote_cmd;
-        var singleMetric;
-        // Metric or all
-        switch (args.length){
-            case 1:
-                // Specific metric
-                metricName = args.pop();
-                remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.metric, metricName);
-                singleMetric = true;
-                break;
-            default:
-                // Default
-                remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.metrics);
-        }
-        
-        var output = spawnProcess(remote_cmd,"shell",null,win_config);
-        
-        // Transmit the error if any
-        if (output.stderr){
-            return callback(new Error(output.stderr.split(line_separator)[0]));
-        }
-        
-        // Parse info
-        return callback(null, jsonifyMetrics(output.stdout));
+    var output = spawnProcess(remote_cmd,"shell",null,win_config);
+    
+    // Transmit the error if any
+    if (output.stderr){
+        return callback(new Error(output.stderr.split(line_separator)[0]));
+    }
+    
+    // Parse info
+    return callback(null, jsonifyMetrics(output.stdout));
 }
 
 // Interface for Win HPC JOBS
@@ -636,7 +634,7 @@ winFn.submit = function(ps, win_config, jobArgs, jobWorkingDir, callback){
         // Submit
         return submitCallback(spawnProcess(remote_cmd,"shell",null,win_config, { cwd : jobWorkingDir}), jobWorkingDir, callback);
     }
-}
+};
 
 function submitCallback(output, jobWorkingDir, callback){
     // Transmit the error if any
@@ -734,7 +732,7 @@ winFn.cancel = function(ps, win_config, jobId, callback){
     }
     // Job deleted returns
     return callback(null, {"message" : 'Job ' + jobId + ' successfully deleted'});
-}
+};
 
 // Display server info
 function mgr_js(win_config, mgrCmd, callback){
@@ -833,19 +831,21 @@ var modules = {
 };
 
 // Create a "win" (Command prompt) version and a "ps" (Powershell) version
+var declareFn = function (_f) {
+    modules["win" + _f] = function(){
+        var args = Array.prototype.slice.call(arguments);
+        args.unshift(false);
+        return winFn[_f].apply(this, args);
+    };
+    modules["ps" + _f] = function(){
+        var args = Array.prototype.slice.call(arguments);
+        args.unshift(true);
+        return winFn[_f].apply(this, args);
+    };
+};
+
 for(var fn in winFn){
-    (function (_f) {
-        modules["win" + _f] = function(){
-            var args = Array.prototype.slice.call(arguments);
-            args.unshift(false);
-            return winFn[_f].apply(this, args);
-        };
-        modules["ps" + _f] = function(){
-            var args = Array.prototype.slice.call(arguments);
-            args.unshift(true);
-            return winFn[_f].apply(this, args);
-        };
-    })(fn);
+    declareFn(fn);
 }
 
 module.exports = modules;
