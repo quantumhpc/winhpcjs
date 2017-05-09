@@ -61,8 +61,8 @@ var winFn = {};
 
 // Helper function to return an array with [full path of exec, arguments] from a command of the cmdDict
 function cmdBuilder(binPath, cmdDictElement, element){
-    var mainCmd = cmdDictElement.shift();
-    var arg = cmdDictElement.pop().replace("ID",element);
+    var mainCmd = cmdDictElement[0];
+    var arg = cmdDictElement[1].replace("ID",element);
     if(mainCmd === 'ps'){
         // Powershell cmdlet, Format as list in the end
         return [powershell, "-Command", HPCsnapIn + arg + powershellFormat];
