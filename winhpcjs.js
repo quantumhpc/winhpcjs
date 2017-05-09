@@ -183,8 +183,8 @@ function insertUsername(win_config){
 // Return the Working Directory
 function getJobWorkDir(win_config, jobId, callback){
     
-    // Retrive Path
-    winjobs(win_config, jobId, function(err,data){
+    // Retrieve Path
+    winFn.jobs(true, win_config, jobId, function(err,data){
         if(err){
             return callback(err);
         }
