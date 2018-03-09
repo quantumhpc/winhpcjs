@@ -6,15 +6,8 @@ Submit job to a Windows HPC server from a nodejs application and retrieve files 
 
 For now only basic function are implemented: **job list**, **job submit**, **job cancel(jobId)**, **nodes list** and only support local installation.
 
-<<<<<<< HEAD
-### Caveat
-Job's owner is the user running the nodejs process (usually an administrator) thus the info retrieve by `job list` always show the same username. 
-Further modifications will come to get the correct owner on the job.
-* See the **winhpc_agents** branch for a possible workaroung
-=======
 ### Using Windows Services to submit a job
 This branch uses _node-windows_ to create a Windows Service running as a specific user able to receive job submission file location through _node-ipc_ sockets. Using Windows Services allows jobs to have the correct owner when submitted and not the one of the running process but it requires dependencies.
->>>>>>> 5c403f4
 
 ## Basic usage
 Edit `./config/winhpcserver.json"` with your information
