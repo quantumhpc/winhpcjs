@@ -8,5 +8,5 @@
         "binariesDir"           : "C:\\Program Files\\Microsoft HPC Pack 2008 R2\\Bin",
         "useSharedDir"          : true,
         "workingDir"            : "c:\\Scratch",
-        "sharedDir"             : "HEADNODE\\\\Scratch"
+        "sharedDir"             : "\\\\HEADNODE\\\\Scratch"
 }

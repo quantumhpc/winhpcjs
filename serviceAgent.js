@@ -16,7 +16,7 @@ if(process.argv[2]){
         process.exit(1);
     }
 }
-
+console.log("Agent for " + ipc.config.id + " started");
 // Default config
 ipc.config.retry    = 1500;
 ipc.config.silent   = true;
@@ -35,10 +35,12 @@ ipc.serve(function(){
             );
         });
         // Submit a job
-        ipc.server.on('action',function(data,socket){
+        ipc.server.on('action', 
+        //** INSERT HERE SCHEDULER SPECIFIC COMMAND **//
+        function(data,socket){
             var args = ["submit"];
             // Insert jobfile
-            args.push("/jobfile:" + data.jobfile);
+            args.push("/jobfile:" + path.join(data.jobWorkingDir,data.jobfile));
             
             // Windows HPC job binary
             var winJob = path.join(data.win_config.binariesDir, "job");
@@ -49,9 +51,14 @@ ipc.serve(function(){
                     encoding    :   'utf8',
                     timeout     :   5000
                 });
+        // END HERE 
             ipc.server.emit(socket,'answer',result);
         });
     }
 );
+
+ipc.server.on('error',function(err){
+    console.log(err);
+});
 
 ipc.server.start();
