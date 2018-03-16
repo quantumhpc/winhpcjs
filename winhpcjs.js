@@ -31,6 +31,7 @@ var dirRegEx = /^\s*Directory of (.+)/;
 var cmdDict = {
     // "setcreds"  :   ["hpccred ", "setcreds"],
     // "delcreds"  :   ["hpccred ", "delcreds"],
+    "clusrun"   :   ["clusrun"],
     "job"       :   ["job", "view /detailed:true ID"],
     "jobs"      :   ["job", "list /all /format:list"],
     "psjob"     :   ["ps", "Get-HpcJob ID"],
@@ -62,13 +63,21 @@ var winFn = {};
 // Helper function to return an array with [full path of exec, arguments] from a command of the cmdDict
 function cmdBuilder(binPath, cmdDictElement, element){
     var mainCmd = cmdDictElement[0];
-    var arg = cmdDictElement[1].replace("ID",element);
+    var args = null;
+    if(cmdDictElement[1]){
+        args = cmdDictElement[1].replace("ID",element);
+    }
     if(mainCmd === 'ps'){
         // Powershell cmdlet, Format as list in the end
-        return [powershell, "-Command", HPCsnapIn + arg + powershellFormat];
+        return [powershell, "-Command", HPCsnapIn + args + powershellFormat];
     }else{
         // Regular cmd
-        return [path.join(binPath, mainCmd)].concat(arg.split(/\s/g));
+        if(args){
+            args = args.split(/\s/g);
+        }else{
+            args = [];
+        }
+        return [path.join(binPath, mainCmd)].concat();
     }
 }
 
@@ -224,6 +233,117 @@ module.exports = function(opts, winAgent){
      * Main functions
      * **************/
      
+    // Clusrun
+    /**
+    opts : {
+        all                 - Run the command on all nodes
+        nodes               :  Array of nodes
+        exclude             : Array of nodes to exclude
+        workdir             : Working directory for the command
+    }
+    **/
+    /**
+     TODO:
+        use winAgent for username {
+            user                : User name under which the command will be executed.
+            domain              : Domain Username under which the command will be executed.
+        }
+     TODO:
+        /env                 <variable_name1>=<value1> [;<variable_name2>=<value2>...]. 
+        /interleaved         - Command output from different nodes are displayed interleaved
+        /job                 - A Running/Finished/Failed/Cancelled job whose nodes will run the command
+        /nodegroup           - Node group where the command will run on
+        /nodestate           - Run the command on all nodes with specified state
+        /outputdir           - Directory where command output will be saved
+        /password            - Password of the specified user.
+        /pausednodes         - Run the command on all offline nodes. Replaced by /nodestate:offline [deprecated]
+        /readynodes          - Run the command on all ready nodes. Replaced by /nodestate:online [deprecated]
+        /scheduler           - Cluster name.
+        /sorted              - Command output from different nodes are displayed after command finishes on all nodes, in the order of node name
+        /spooldir            - Directory where command output will be saved. Replaced by /outputdir [deprecated]
+        /stdin               - Standard input file for the command.
+        /task                - A Running/Finished/Failed/Cancelled task whose nodes will run the command
+        /template            - A job template whose nodes will run the command
+    **/
+
+    modules.clusrun = function(win_config, cmd, opts, callback){
+        var args = Array.prototype.slice.call(arguments);
+    
+        // first argument is the config file
+        win_config = args.shift();
+    
+        // first argument is the config file
+        cmd = args.shift();
+    
+        // last argument is the callback function
+        callback = args.pop();
+        
+        var remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.clusrun);
+        
+        // Parse arguments
+        if(args.length === 1){
+            // Options
+            opts = args.pop();
+            // Working directory
+            if(opts.workdir){
+                remote_cmd.push("/workdir:" + opts.workdir);
+            }
+            // Nodes
+            if(opts.nodes){
+                if(!(Array.isArray(opts.nodes))){
+                    opts.nodes = [opts.nodes];
+                }
+                var nodeCmd = "/nodes:";
+                for(var node in opts.nodes){
+                    nodeCmd += opts.nodes[node] + ",";
+                }
+                remote_cmd.push(nodeCmd);
+            }
+            // Exclude
+            if(opts.exclude){
+                if(!(Array.isArray(opts.exclude))){
+                    opts.exclude = [opts.exclude];
+                }
+                var excludeCmd = "/exclude:";
+                for(var exclude in opts.exclude){
+                    excludeCmd += opts.exclude[exclude] + ",";
+                }
+                remote_cmd.push(excludeCmd);
+            }
+            
+        }else{
+            // Default is to run on all nodes
+            opts = {all : true};
+        }
+        if(opts.all){
+            remote_cmd.push("/all");
+        }
+        // Insert custom command
+        remote_cmd.push(cmd);
+        
+        var output = spawnProcess(remote_cmd,"shell",null,win_config);
+        // Transmit the error if any
+        if (output.error){
+            return callback(output.error);
+        }
+        var result = [];
+        var stdout = output.stdout.trim().split(/\r\n\-+\s+Summary\s+\-+\r\n/mg);
+        var summary = stdout[1].trim().match(/([0-9]+)\s+Nodes\s+succeeded\r\n([0-9]+)\s+Nodes\s+failed/);
+        var cmdOutput = stdout[0].trim().split(/\-+\s+(.+)\s+returns\s+([0-9]+)\s+\-+\r\n/g);
+        for(var i=1; i<cmdOutput.length; i+=3){
+            result.push({
+                node        :   cmdOutput[i],
+                code        :   cmdOutput[i+1],
+                output      :   cmdOutput[i+2]
+            });
+        }
+        return callback(null, {
+                success : summary[1],
+                failure : summary[2],  
+                result  : result
+            });
+    };
+    
     // Return the Working Directory
     modules.getJobWorkDir = function(win_config, jobId, callback){
         
@@ -246,10 +366,7 @@ module.exports = function(opts, winAgent){
     // Create a unique working directory in the global working directory from the config
     modules.createJobWorkDir = function(win_config, workdirName, callback){
         
-        var args = [];
-        for (var i = 0; i < arguments.length; i++) {
-            args.push(arguments[i]);
-        }
+        var args = Array.prototype.slice.call(arguments);
     
         // first argument is the config file
         win_config = args.shift();
@@ -292,10 +409,10 @@ module.exports = function(opts, winAgent){
         
         var remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.setcreds);
         // User
-        remote_cmd += insertUsername(win_config);
+        remote_cmd.push(insertUsername(win_config));
         
         // Password
-        remote_cmd += " /password:" + password;
+        remote_cmd.push(" /password:" + password);
         
         var output = spawnProcess(remote_cmd,"shell",null,win_config);
         // Transmit the error if any
@@ -444,6 +561,7 @@ module.exports = function(opts, winAgent){
         
     **/
     winFn.jobs = function(ps, win_config, jobId, callback){
+        //TODO: Get all tasks info : Get-HpcJob -State All | Get-HpcTask
         // JobId is optionnal so we test on the number of args
         var args = Array.prototype.slice.call(arguments);
         // Boolean to indicate if we want the job list
