@@ -77,7 +77,7 @@ function cmdBuilder(binPath, cmdDictElement, element){
         }else{
             args = [];
         }
-        return [path.join(binPath, mainCmd)].concat();
+        return [path.join(binPath, mainCmd)].concat(args);
     }
 }
 
