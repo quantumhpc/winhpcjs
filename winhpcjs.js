@@ -713,8 +713,8 @@ module.exports = function(opts, winAgent){
             
             for(var _env in jobArgs.env){
                 toWrite += '\t\t<Variable>' + os.EOL;
-                toWrite += '<Name>' + _env + '</Name>' + os.EOL;
-                toWrite += '<Value>' + jobArgs.env[_env] + '</Value>' + os.EOL;
+                toWrite += '\t\t\t<Name>' + _env + '</Name>' + os.EOL;
+                toWrite += '\t\t\t<Value>' + jobArgs.env[_env] + '</Value>' + os.EOL;
                 toWrite += '</Variable>' + os.EOL;
             }
             
