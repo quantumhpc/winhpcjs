@@ -34,6 +34,7 @@ var cmdDict = {
     "clusrun"   :   ["clusrun"],
     "job"       :   ["job", "view /detailed:true ID"],
     "jobs"      :   ["job", "list /all /format:list"],
+    "modify"    :   ["job", "modify ID"],
     "psjob"     :   ["ps", "Get-HpcJob ID"],
     "psjobs"    :   ["ps", "Get-HpcJob -State All"],
     "task"      :   ["task", "view /detailed:true ID"],
@@ -324,7 +325,7 @@ module.exports = function(opts, winAgent){
         var output = spawnProcess(remote_cmd,"shell",null,win_config);
         // Transmit the error if any
         if (output.error){
-            return callback(output.error);
+            return callback(new Error(output.error));
         }
         var result = [];
         var stdout = output.stdout.trim().split(/\r\n\-+\s+Summary\s+\-+\r\n/mg);
@@ -417,7 +418,7 @@ module.exports = function(opts, winAgent){
         var output = spawnProcess(remote_cmd,"shell",null,win_config);
         // Transmit the error if any
         if (output.error){
-            return callback(output.error);
+            return callback(new Error(output.error));
         }
     
         return callback(null, true);
@@ -482,7 +483,7 @@ module.exports = function(opts, winAgent){
         
         // Transmit the error if any
         if (output.error){
-            return callback(output.error);
+            return callback(new Error(output.error));
         }
         
         if (parseOutput){
@@ -542,7 +543,7 @@ module.exports = function(opts, winAgent){
         
         // Transmit the error if any
         if (output.error){
-            return callback(output.error);
+            return callback(new Error(output.error));
         }
         
         // Parse info
@@ -592,7 +593,7 @@ module.exports = function(opts, winAgent){
         
         // Transmit the error if any
         if (output.error){
-            return callback(output.error);
+            return callback(new Error(output.error));
         }
         // Job info or list
         if (jobList){
@@ -758,6 +759,45 @@ module.exports = function(opts, winAgent){
         });
     };
     
+    
+    // Interface for job modify
+    // Modify job parameters inline
+    // winmodify(
+    /*    
+            pbs_config      :   config,
+            jobId           :   jobId,
+            jobSettings     :  {
+                jobName     :   string
+                priority    :   -1024 < n < 1023
+            },
+            callack(err, success)
+    }
+    */
+    modules.winmodify = function(win_config, jobId, jobSettings, callback){
+        var remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.modify, jobId);
+        
+        // Job name
+        if(jobSettings.jobName){
+            remote_cmd.push('/jobname:' + jobSettings.jobName);
+        }
+        // Priority
+        if(jobSettings.priority){
+            // Parse number
+            jobSettings.priority = Math.max(Math.min(Number(jobSettings.priority), 4000), 0);
+            remote_cmd.push('/priority:' + jobSettings.priority);
+        }
+        
+        // Submit
+        var output = spawnProcess(remote_cmd,"shell",null,win_config);
+        
+        // Transmit the error if any
+        if (output.error){
+            return callback(new Error(output.error));
+        }
+        
+        return callback(null, 'Job ' + jobId + ' successfully modified');
+    };
+    
     // Interface for job submit
     // Submit a script by its absolute path
     // winsubmit(
@@ -823,7 +863,7 @@ module.exports = function(opts, winAgent){
     function submitCallback(output, jobWorkingDir, callback){
         // Transmit the error if any
         if (output.error){
-            return callback(output.error);
+            return callback(new Error(output.error));
         }
         if (output.stderr){
             return callback(new Error(output.stderr));
@@ -867,7 +907,7 @@ module.exports = function(opts, winAgent){
         
         // Transmit the error if any
         if (output.error){
-            return callback(output.error);
+            return callback(new Error(output.error));
         }
         
         // Group info or list
@@ -915,7 +955,7 @@ module.exports = function(opts, winAgent){
         
         // Transmit the error if any
         if (output.error){
-            return callback(output.error);
+            return callback(new Error(output.error));
         }
         // Job deleted returns
         return callback(null, {"message" : 'Job ' + jobId + ' successfully deleted'});
@@ -940,7 +980,7 @@ module.exports = function(opts, winAgent){
             
             // Transmit the error if any
             if (output.error){
-                return callback(output.error);
+                return callback(new Error(output.error));
             }
             output.stdout = output.stdout.split(os.EOL + os.EOL);
             
