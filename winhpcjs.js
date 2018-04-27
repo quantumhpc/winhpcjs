@@ -622,6 +622,7 @@ module.exports = function(opts, winAgent){
         resources       :   String      //  'UnitType="Core" MinCores="1" MaxCores="1"'
         walltime        :   String      //  'RuntimeSeconds="10860"'
         queue           :   String      //  'NodeGroups="AzureNodes,ComputeNode"'
+        reqNodes        :   Array       //  'RequestedNodes="HEADNODE,NODE1"'
         workdir         :   String      //  'WorkDirectory="workDirPath"' || Array of task workdir
         stdout          :   String      //  'StdOutFilePath="outFile"' || Array of task stdout
         stderr          :   String      //  'StdErrFilePath="errFile"' || Array of task stderr
@@ -686,6 +687,23 @@ module.exports = function(opts, winAgent){
         // Node groups optional
         if (jobArgs.queue !== undefined && jobArgs.queue !== ''){
             toWrite += ' NodeGroups="' + jobArgs.queue + '"';
+        }
+        
+        // Requested Nodes optional
+        if (jobArgs.reqNodes !== undefined && jobArgs.reqNodes !== ''){
+            if(!(Array.isArray(jobArgs.reqNodes))){
+                jobArgs.reqNodes = [jobArgs.reqNodes];
+            }
+            toWrite += ' RequestedNodes="';
+            var firstNode = true;
+            for(var reqNode in jobArgs.reqNodes){
+                if(!firstNode){
+                    toWrite += ",";
+                }
+                toWrite += jobArgs.reqNodes[reqNode];
+                firstNode = false;
+            }
+            toWrite += '"';
         }
         
         // Job exclusive
