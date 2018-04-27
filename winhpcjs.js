@@ -349,18 +349,22 @@ module.exports = function(opts, winAgent){
     modules.getJobWorkDir = function(win_config, jobId, callback){
         
         // Retrieve Path
-        winFn.jobs(true, win_config, jobId, function(err,data){
+        winFn.tasks(true, win_config, jobId, function(err,data){
             if(err){
                 return callback(err);
             }
-            var jobWorkingDir;
-            try{
-                jobWorkingDir = path.resolve(data.WorkDirectory);
-            }catch(e){
-                return callback(new Error("Working directory not found"));
-            }
             
-            return callback(null, jobWorkingDir);
+            // Loop on tasks and return on first one
+            for(var task in data){
+                var jobWorkingDir;
+                try{
+                    jobWorkingDir = path.resolve(data[task].WorkDirectory);
+                }catch(e){
+                    return callback(new Error("Working directory not found"));
+                }
+                
+                return callback(null, jobWorkingDir);
+            }
         });
     };
     
@@ -553,12 +557,12 @@ module.exports = function(opts, winAgent){
     // Interface for Win HPC JOBS
     /** winjobs(
         config          :   array of configuration parameters
-        jobName         :   job specific info
+        jobId           :   job specific info
         callback)
         
         Methods:
         Job list        :   winjobs(config, callback)
-        Job info       :    winjobs(config, jobName, callback)
+        Job info       :    winjobs(config, jobId, callback)
         
     **/
     winFn.jobs = function(ps, win_config, jobId, callback){
@@ -611,7 +615,47 @@ module.exports = function(opts, winAgent){
         }
     };
     
-    
+    // Interface for Win HPC Tasks
+    /** wintasks(
+        config          :   array of configuration parameters
+        jobName         :   task for the job
+        callback)
+        
+        Methods:
+        Job list        :   winjobs(config, callback)
+        Job info       :    winjobs(config, jobName, callback)
+        
+    **/
+    winFn.tasks = function(ps, win_config, jobId, callback){
+        var node_prefix = "";
+        if(ps === true){
+            node_prefix = "ps";
+        }
+        var remote_cmd;
+        
+        remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict[node_prefix + "task"], jobId);
+        
+        var output = spawnProcess(remote_cmd,"shell",null,win_config);
+        
+        // Transmit the error if any
+        if (output.error){
+            return callback(new Error(output.error));
+        }
+        
+        // Task list
+        output = output.stdout.trim().split(os.EOL + os.EOL);
+        
+        // Parse jobs
+        var tasks = [];
+        for (var j = 0; j < output.length; j++) {
+            if(output[j].length > 1){
+                tasks.push(jsonifyParam(output[j]));
+            }
+        }
+        
+        return callback(null, tasks);
+            
+    };
     // Generate the script to run the job and write it to the specified path
     // Workdir has to be specified, WinHPC does not allow jobfile and workdir
     // Job Arguments taken in input : TO COMPLETE
