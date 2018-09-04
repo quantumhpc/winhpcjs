@@ -47,7 +47,7 @@ var winFn = {};
 
 // Helper function to return an array with [full path of exec, arguments] from a command of the cmdDict
 function cmdBuilder(binPath, cmdDictElement, element){
-    var mainCmd = cmdDictElement[0] + '.exe';
+    var mainCmd = cmdDictElement[0];
     var args = null;
     if(cmdDictElement[1]){
         args = cmdDictElement[1].replace("ID",element);
@@ -62,7 +62,7 @@ function cmdBuilder(binPath, cmdDictElement, element){
         }else{
             args = [];
         }
-        return [path.join(binPath, mainCmd)].concat(args);
+        return [path.join(binPath, mainCmd + '.exe')].concat(args);
     }
 }
 
@@ -854,20 +854,20 @@ modules.submit = function(win_config, jobArgs, jobWorkingDir, callback){
     }
     
     // Send files by the copy command defined
-    // for (var i = 0; i < jobArgs.length; i++){
-    //     // Copy only different files
-    //     if(path.normalize(jobArgs[i]) !== path.join(jobWorkingDir, path.basename(jobArgs[i]))){
-    //         var copyCmd = spawnProcess([jobArgs[i],jobWorkingDir],"copy","send",win_config);
-    //         if (copyCmd.error){
-    //             return callback(new Error(copyCmd.error));
-    //         }
-    //     }
-    // }
+    for (var i = 0; i < jobArgs.length; i++){
+        // Copy only different files
+        if(path.normalize(jobArgs[i]) !== path.join(jobWorkingDir, path.basename(jobArgs[i]))){
+            var copyCmd = spawnProcess([jobArgs[i],jobWorkingDir],"copy","send",win_config);
+            if (copyCmd.error){
+                return callback(new Error(copyCmd.error));
+            }
+        }
+    }
     
     // Add script: first element of qsubArgs
     var scriptName = path.basename(jobArgs[0]);
     // Use clusrun to submit job as running user
-    var submitCmd = cmdBuilder(win_config.binariesDir, cmdDict["submit"], scriptName);
+    var submitCmd = cmdBuilder(win_config.binariesDir, cmdDict.submit, scriptName);
     submitCmd[0] = "\"" + submitCmd[0] + "\"";
     
     modules.clusrun(win_config, submitCmd.join(' '), 
