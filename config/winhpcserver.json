@@ -1,6 +1,6 @@
 {
         "method"                : "local",
-        "useAgent"              : false,
+        "headnode"              : "headnode",
         "username"              : "user",
         "domain"                : "DOMAIN",
         "serverName"            : "winserver",

@@ -21,9 +21,5 @@
   "bugs": {
     "url": "https://github.com/quantumhpc/winhpcjs/issues"
   },
-  "homepage": "https://github.com/quantumhpc/winhpcjs#readme",
-  "dependencies": {
-    "node-ipc": "^8.10.3",
-    "node-windows": "^0.1.14"
-  }
+  "homepage": "https://github.com/quantumhpc/winhpcjs#readme"
 }
