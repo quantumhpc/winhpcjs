@@ -6,24 +6,17 @@ Submit job to a Windows HPC server from a nodejs application and retrieve files 
 
 For now only basic function are implemented: **job list**, **job submit**, **job cancel(jobId)**, **nodes list** and only support local installation.
 
-### Using Windows Services to submit a job
-This branch uses _node-windows_ to create a Windows Service running as a specific user able to receive job submission file location through _node-ipc_ sockets. Using Windows Services allows jobs to have the correct owner when submitted and not the one of the running process but it requires dependencies.
-
 ## Basic usage
 Edit `./config/winhpcserver.json"` with your information
 ```
 var win_config = {
         "method"                : "local",
-        "sshExec"               : "C:\\Program Files (x86)\\PuTTY\\plink.exe",
-        "scpExec"               : "C:\\Program Files (x86)\\PuTTY\\pscp.exe",
         "username"              : "user",
         "domain"                : "DOMAIN",
-        "serverName"            : "winserver",
-        "secretAccessKey"       : "C:\\Users\\User\\.ssh\\id_rsa",
+        "headnode"              : "winserver",
         "localCopy"             : "COPY",
         "binariesDir"           : "C:\\Program Files\\Microsoft HPC Pack 2008 R2\\Bin",
         "useSharedDir"          : true,
-        "useAgent"              : true,
         "workingDir"            : "c:\\Scratch",
         "sharedDir"             : "HEADNODE\\\\Scratch"
 };
