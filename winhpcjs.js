@@ -1,9 +1,7 @@
-var cproc = require('child_process');
-var spawn = cproc.spawnSync;
+var hpc = require("../hpc_exec_wrapper");
 var fs = require("fs");
 var os = require("os");
 var path = require("path");
-var win_shell = process.env.comspec;
 var powershell = "C:\\Windows\\system32\\WindowsPowerShell\\v1.0\\powershell.exe";
 var HPCsnapIn = "Add-PSSnapIn Microsoft.HPC;";
 // Format Powershell output as list
@@ -64,39 +62,6 @@ function cmdBuilder(binPath, cmdDictElement, element){
         }
         return [path.join(binPath, mainCmd + '.exe')].concat(args);
     }
-}
-
-// Parse the command and return stdout of the process depending on the method
-/*
-    spawnCmd                :   shell command   /   [file, destinationDir], 
-    spawnType               :   shell           /   copy, 
-    spawnDirection          :   null            /   send || retrieve, 
-    pbs_config
-*/
-// TODO: treat errors
-function spawnProcess(spawnCmd, spawnType, spawnDirection, win_config, opts, callback){
-    var spawnExec;
-    var spawnOpts = opts || {};
-    spawnOpts.encoding = 'utf8';
-	// Timeout command if the credentials are not set
-    spawnOpts.timeout = 10000;
-    switch (spawnType){
-        case "shell":
-            case "local":
-                spawnExec = spawnCmd.shift();
-            break;
-        //Copy the files according to the spawnCmd array : 0 is the file, 1 is the destination dir
-        case "copy":
-            case "local":
-                spawnExec = win_config.localCopy;
-                spawnOpts.shell = true;
-            break;
-    }
-    var spawnReturn = spawn(spawnExec, spawnCmd, spawnOpts);
-    if(spawnReturn.stderr){
-        spawnReturn.error = new Error(spawnReturn.stderr.split(os.EOL)[0]);
-    }
-    return spawnReturn;
 }
 
 // Parse resources and return the UnitType="Core||Socket||Nodes"  statement
@@ -187,15 +152,6 @@ function jsonifyMetrics(output){
     }
     return ordered;
 }
-
-function createUID()
-{
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        var r = Math.random()*16|0, v = c === 'x' ? r : (r&0x3|0x8);
-        return v.toString(16);
-    });
-}
-
 
 // Windows does not support UID/GID, so we insert /user: on each command
 function insertUsername(win_config){
@@ -295,7 +251,7 @@ modules.clusrun = function(win_config, cmd, opts, callback){
     // Insert custom command
     remote_cmd.push(cmd);
     
-    var output = spawnProcess(remote_cmd,"shell",null,win_config);
+    var output = hpc.spawn(remote_cmd,"shell",null,win_config);
     // Transmit the error if any
     if (output.error){
         if(output.error.code === 'ETIMEDOUT' && output.stdout.startsWith('Enter the password for')){
@@ -347,43 +303,7 @@ modules.getJobWorkDir = function(win_config, jobId, callback){
 
 // Create a unique working directory in the global working directory from the config
 modules.createJobWorkDir = function(win_config, workdirName, callback){
-    
-    var args = Array.prototype.slice.call(arguments);
-
-    // first argument is the config file
-    win_config = args.shift();
-
-    // last argument is the callback function
-    callback = args.pop();
-    
-    var workDir;
-    if(args.length === 1){
-        // Takes a string to create the working directory
-        workDir = args.pop();
-    }else{
-        // Generate a UID for the working dir
-        workDir = createUID();
-    }
-    
-    // Get configuration working directory and Generate a UID for the working dir
-    var jobWorkingDir = path.join(win_config.workingDir,workDir);
-    
-    // Return a locally available job Directory
-    var mountedWorkingDir = null;
-    if (win_config.useSharedDir){
-        mountedWorkingDir = path.join(win_config.sharedDir,workDir);
-    }
-    //Create workdir with 700 permissions
-    var process = spawnProcess([win_shell, '/c', 'IF NOT EXIST ' + jobWorkingDir + ' ' + win_shell + ' /c mkdir ' +jobWorkingDir] ,"shell", null, win_config);
-    
-    // Transmit the error if any
-    if (process.error){
-        return callback(new Error(process.error));
-    }
-    
-    //TODO:handles error
-    // Return the UNC Path
-    return callback(null, jobWorkingDir, mountedWorkingDir);
+    return hpc.createJobWorkDir.apply(null, arguments);
 };
 
 // Set credentials with plain-text password on command line
@@ -396,7 +316,7 @@ modules.wincreds = function(win_config, password, callback){
     // Password
     remote_cmd.push("/password:" + password);
     
-    var output = spawnProcess(remote_cmd,"shell",null,win_config);
+    var output = hpc.spawn(remote_cmd,"shell",null,win_config);
     // Transmit the error if any
     if (output.error){
         return callback(output.error);
@@ -460,7 +380,7 @@ winFn.nodes = function(ps, win_config, controlCmd, nodeName, callback){
             remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict[node_prefix + "nodes"]);
     }
     
-    var output = spawnProcess(remote_cmd,"shell",null,win_config);
+    var output = hpc.spawn(remote_cmd,"shell",null,win_config);
     
     // Transmit the error if any
     if (output.error){
@@ -520,7 +440,7 @@ modules.psmetric = function(win_config, metricName, callback){
             remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.metrics);
     }
     
-    var output = spawnProcess(remote_cmd,"shell",null,win_config);
+    var output = hpc.spawn(remote_cmd,"shell",null,win_config);
     
     // Transmit the error if any
     if (output.error){
@@ -570,7 +490,7 @@ winFn.jobs = function(ps, win_config, jobId, callback){
     }else{
         remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict[node_prefix + "jobs"]);
     }
-    var output = spawnProcess(remote_cmd,"shell",null,win_config);
+    var output = hpc.spawn(remote_cmd,"shell",null,win_config);
     
     // Transmit the error if any
     if (output.error){
@@ -612,7 +532,7 @@ winFn.tasks = function(ps, win_config, jobId, callback){
     
     remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict[node_prefix + "task"], jobId);
     
-    var output = spawnProcess(remote_cmd,"shell",null,win_config);
+    var output = hpc.spawn(remote_cmd,"shell",null,win_config);
     
     // Transmit the error if any
     if (output.error){
@@ -803,7 +723,7 @@ modules.winscript = function(jobArgs, localPath, callback){
 // Modify job parameters inline
 // winmodify(
 /*    
-        pbs_config      :   config,
+        win_config      :   config,
         jobId           :   jobId,
         jobSettings     :  {
             jobName     :   string
@@ -827,7 +747,7 @@ modules.winmodify = function(win_config, jobId, jobSettings, callback){
     }
     
     // Submit
-    var output = spawnProcess(remote_cmd,"shell",null,win_config);
+    var output = hpc.spawn(remote_cmd,"shell",null,win_config);
     
     // Transmit the error if any
     if (output.error){
@@ -857,7 +777,7 @@ modules.submit = function(win_config, jobArgs, jobWorkingDir, callback){
     for (var i = 0; i < jobArgs.length; i++){
         // Copy only different files
         if(path.normalize(jobArgs[i]) !== path.join(jobWorkingDir, path.basename(jobArgs[i]))){
-            var copyCmd = spawnProcess([jobArgs[i],jobWorkingDir],"copy","send",win_config);
+            var copyCmd = hpc.spawn([jobArgs[i],jobWorkingDir],"copy", null, win_config);
             if (copyCmd.error){
                 return callback(new Error(copyCmd.error));
             }
@@ -912,7 +832,7 @@ modules.psgroups = function(win_config, groupName, callback){
     }else{
         remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.groups);
     }
-    var output = spawnProcess(remote_cmd,"shell",null,win_config);
+    var output = hpc.spawn(remote_cmd,"shell",null,win_config);
     
     // Transmit the error if any
     if (output.error){
@@ -960,7 +880,7 @@ winFn.cancel = function(ps, win_config, jobId, callback){
         remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict[node_prefix + "cancel"], jobId);
     }
     
-    var output = spawnProcess(remote_cmd,"shell",null,win_config);
+    var output = hpc.spawn(remote_cmd,"shell",null,win_config);
     
     // Transmit the error if any
     if (output.error){
@@ -985,7 +905,7 @@ modules.windir = function(win_config, jobId, callback){
         }
         // TOOD: put in config file
         var remote_cmd = ["dir", "/s", jobWorkingDir];
-        var output = spawnProcess(remote_cmd,"shell",null,win_config,{shell : true});
+        var output = hpc.spawn(remote_cmd,"shell",null,win_config,{shell : true});
         
         // Transmit the error if any
         if (output.error){
