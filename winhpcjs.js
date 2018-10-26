@@ -1,4 +1,7 @@
 var hpc = require("../hpc_exec_wrapper/exec.js");
+var spawnOpts = {
+    timeout : 10000
+};
 var fs = require("fs");
 var os = require("os");
 var path = require("path");
@@ -251,7 +254,7 @@ modules.clusrun = function(win_config, cmd, opts, callback){
     // Insert custom command
     remote_cmd.push(cmd);
     
-    var output = hpc.spawn(remote_cmd,"shell",null,win_config);
+    var output = hpc.spawn(remote_cmd,"shell",null, win_config, spawnOpts);
     // Transmit the error if any
     if (output.error){
         if(output.error.code === 'ETIMEDOUT' && output.stdout.startsWith('Enter the password for')){
@@ -316,7 +319,7 @@ modules.wincreds = function(win_config, password, callback){
     // Password
     remote_cmd.push("/password:" + password);
     
-    var output = hpc.spawn(remote_cmd,"shell",null,win_config);
+    var output = hpc.spawn(remote_cmd,"shell",null, win_config, spawnOpts);
     // Transmit the error if any
     if (output.error){
         return callback(output.error);
@@ -380,7 +383,7 @@ winFn.nodes = function(ps, win_config, controlCmd, nodeName, callback){
             remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict[node_prefix + "nodes"]);
     }
     
-    var output = hpc.spawn(remote_cmd,"shell",null,win_config);
+    var output = hpc.spawn(remote_cmd,"shell",null, win_config, spawnOpts);
     
     // Transmit the error if any
     if (output.error){
@@ -440,7 +443,7 @@ modules.psmetric = function(win_config, metricName, callback){
             remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.metrics);
     }
     
-    var output = hpc.spawn(remote_cmd,"shell",null,win_config);
+    var output = hpc.spawn(remote_cmd,"shell",null, win_config, spawnOpts);
     
     // Transmit the error if any
     if (output.error){
@@ -490,7 +493,7 @@ winFn.jobs = function(ps, win_config, jobId, callback){
     }else{
         remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict[node_prefix + "jobs"]);
     }
-    var output = hpc.spawn(remote_cmd,"shell",null,win_config);
+    var output = hpc.spawn(remote_cmd,"shell",null, win_config, spawnOpts);
     
     // Transmit the error if any
     if (output.error){
@@ -532,7 +535,7 @@ winFn.tasks = function(ps, win_config, jobId, callback){
     
     remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict[node_prefix + "task"], jobId);
     
-    var output = hpc.spawn(remote_cmd,"shell",null,win_config);
+    var output = hpc.spawn(remote_cmd,"shell",null, win_config, spawnOpts);
     
     // Transmit the error if any
     if (output.error){
@@ -690,11 +693,21 @@ modules.winscript = function(jobArgs, localPath, callback){
         toWrite += '\t\t<Task';
         // Resources
         toWrite += jobArgs.resources;
-        toWrite += ' Name="' + jobArgs.taskName[task] + '"';
+        if(jobArgs.taskName[task] !== null){
+            toWrite += ' Name="' + jobArgs.taskName[task] + '"';
+        }
         // Workdir
-        toWrite += ' WorkDirectory="' + jobArgs.workdir[task] + '"';
+        if(jobArgs.workdir[task] !== null){
+            toWrite += ' WorkDirectory="' + jobArgs.workdir[task] + '"';
+        }
         //Stdout and err
-        toWrite += ' StdOutFilePath="' + jobArgs.stdout[task] + '" StdErrFilePath="' + jobArgs.stderr[task] + '"';
+        if(jobArgs.stdout[task] !== null){
+            toWrite += ' StdOutFilePath="' + jobArgs.stdout[task] + '"';
+        }
+        if(jobArgs.stderr[task] !== null){
+            toWrite += ' StdErrFilePath="' + jobArgs.stderr[task] + '"';
+        }
+         
         //Command
         toWrite += ' CommandLine="' + jobArgs.commands[task] + '"';
         //End
@@ -747,7 +760,7 @@ modules.winmodify = function(win_config, jobId, jobSettings, callback){
     }
     
     // Submit
-    var output = hpc.spawn(remote_cmd,"shell",null,win_config);
+    var output = hpc.spawn(remote_cmd,"shell",null, win_config, spawnOpts);
     
     // Transmit the error if any
     if (output.error){
@@ -777,7 +790,7 @@ modules.submit = function(win_config, jobArgs, jobWorkingDir, callback){
     for (var i = 0; i < jobArgs.length; i++){
         // Copy only different files
         if(path.normalize(jobArgs[i]) !== path.join(jobWorkingDir, path.basename(jobArgs[i]))){
-            var copyCmd = hpc.spawn([jobArgs[i],jobWorkingDir],"copy", null, win_config);
+            var copyCmd = hpc.spawn([jobArgs[i],jobWorkingDir],"copy", null, win_config, spawnOpts);
             if (copyCmd.error){
                 return callback(new Error(copyCmd.error));
             }
@@ -832,7 +845,7 @@ modules.psgroups = function(win_config, groupName, callback){
     }else{
         remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict.groups);
     }
-    var output = hpc.spawn(remote_cmd,"shell",null,win_config);
+    var output = hpc.spawn(remote_cmd,"shell",null, win_config, spawnOpts);
     
     // Transmit the error if any
     if (output.error){
@@ -880,7 +893,7 @@ winFn.cancel = function(ps, win_config, jobId, callback){
         remote_cmd = cmdBuilder(win_config.binariesDir, cmdDict[node_prefix + "cancel"], jobId);
     }
     
-    var output = hpc.spawn(remote_cmd,"shell",null,win_config);
+    var output = hpc.spawn(remote_cmd,"shell",null, win_config, spawnOpts);
     
     // Transmit the error if any
     if (output.error){
@@ -905,7 +918,7 @@ modules.windir = function(win_config, jobId, callback){
         }
         // TOOD: put in config file
         var remote_cmd = ["dir", "/s", jobWorkingDir];
-        var output = hpc.spawn(remote_cmd,"shell",null,win_config,{shell : true});
+        var output = hpc.spawn(remote_cmd,"shell",null,win_config,{shell : true, timeout: spawnOpts.timeout});
         
         // Transmit the error if any
         if (output.error){
