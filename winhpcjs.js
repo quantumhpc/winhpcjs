@@ -1,10 +1,10 @@
-var hpc = require("../hpc_exec_wrapper/exec.js");
+var fs = require("fs");
+var path = require("path");
+var os = require("os");
+var hpc = require(path.join(__dirname, "../hpc_exec_wrapperjs/exec.js"));
 var spawnOpts = {
     timeout : 10000
 };
-var fs = require("fs");
-var os = require("os");
-var path = require("path");
 var powershell = "C:\\Windows\\system32\\WindowsPowerShell\\v1.0\\powershell.exe";
 var HPCsnapIn = "Add-PSSnapIn Microsoft.HPC;";
 // Format Powershell output as list
